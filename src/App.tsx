@@ -1,4 +1,9 @@
 import {
+  lazy,
+  Suspense,
+} from "react";
+
+import {
   Navigate,
   Route,
   Routes,
@@ -6,19 +11,36 @@ import {
 
 import AppLayout from "./components/layout/AppLayout";
 
-import Dashboard from "./pages/Dashboard/Dashboard";
-import Parties from "./pages/Parties/Parties";
-import PartyDetails from "./pages/PartyDetails/PartyDetails";
-import Transactions from "./pages/Transactions/Transactions";
-import Regions from "./pages/Regions/Regions";
-import Reports from "./pages/Reports/Reports";
-import Backup from "./pages/Backup/Backup";
-import Settings from "./pages/Settings/Settings";
+const Dashboard = lazy(() => import("./pages/Dashboard/Dashboard"));
+const Parties = lazy(() => import("./pages/Parties/Parties"));
+const PartyDetails = lazy(
+  () => import("./pages/PartyDetails/PartyDetails"),
+);
+const Transactions = lazy(
+  () => import("./pages/Transactions/Transactions"),
+);
+const Regions = lazy(() => import("./pages/Regions/Regions"));
+const Reports = lazy(() => import("./pages/Reports/Reports"));
+const Backup = lazy(() => import("./pages/Backup/Backup"));
+const Settings = lazy(() => import("./pages/Settings/Settings"));
+const NotFound = lazy(() => import("./pages/NotFound/NotFound"));
+
+function RouteFallback() {
+  return (
+    <div
+      role="status"
+      className="flex min-h-[50vh] items-center justify-center text-sm font-medium text-slate-500"
+    >
+      Loading LedgerFlow…
+    </div>
+  );
+}
 
 function App() {
   return (
-    <Routes>
-      <Route element={<AppLayout />}>
+    <Suspense fallback={<RouteFallback />}>
+      <Routes>
+        <Route element={<AppLayout />}>
         <Route
           path="/"
           element={
@@ -68,8 +90,13 @@ function App() {
           path="/settings"
           element={<Settings />}
         />
-      </Route>
-    </Routes>
+          <Route
+            path="*"
+            element={<NotFound />}
+          />
+        </Route>
+      </Routes>
+    </Suspense>
   );
 }
 

@@ -2,8 +2,6 @@ import {
   useCallback,
   useLayoutEffect,
   useMemo,
-  useRef,
-  useState,
 } from "react";
 
 import type {
@@ -28,7 +26,6 @@ import type {
   PrintFontSize,
   PrintSettings,
   ResolvedAppearanceTheme,
-  SettingsStorageError,
   TableDensity,
   UiDensity,
 } from "../types/settings";
@@ -37,22 +34,15 @@ import {
   DEFAULT_APPEARANCE_SETTINGS,
   DEFAULT_BUSINESS_SETTINGS,
   DEFAULT_PRINT_SETTINGS,
-  DEFAULT_SETTINGS,
-  loadSettings,
-  mergeSettings,
-  saveSettings,
 } from "../utils/settingsStorage";
 
 import type {
-  SettingsSaveResult,
-} from "../utils/settingsStorage";
+  BusinessCurrency,
+} from "../types/settings";
 
-interface ProviderState {
-  settings: AppSettings;
-  storageError:
-    SettingsStorageError | null;
-  isPersisted: boolean;
-}
+import {
+  useLedger,
+} from "../hooks/useLedger";
 
 interface AccentTokens {
   base: string;
@@ -320,55 +310,45 @@ export function SettingsProvider({
 }: {
   children: ReactNode;
 }) {
-  const [state, setState] =
-    useState<ProviderState>(() => {
-      const loaded = loadSettings();
+  const {
+    activeCompany,
+    appearance,
+    applySettingsPatch,
+    storageError,
+    isPersisted,
+    clearStorageError,
+  } = useLedger();
 
-      return {
-        settings: loaded.settings,
-        storageError: loaded.error,
-        isPersisted:
-          loaded.error === null,
-      };
-    });
-  const settingsRef =
-    useRef(state.settings);
-
-  const commitSettings =
-    useCallback(
-      (
-        nextSettings: AppSettings,
-      ): SettingsSaveResult => {
-        settingsRef.current =
-          nextSettings;
-
-        const saveResult =
-          saveSettings(nextSettings);
-
-        setState({
-          settings: nextSettings,
-          storageError:
-            saveResult.error,
-          isPersisted:
-            saveResult.ok,
-        });
-
-        return saveResult;
+  const settings = useMemo<AppSettings>(
+    () => ({
+      business: {
+        companyName: activeCompany.name,
+        address: activeCompany.address,
+        phone: activeCompany.phone,
+        gstin: activeCompany.gstin,
+        email: activeCompany.email,
+        statementHeader:
+          activeCompany.settings.statementHeader,
+        statementFooter:
+          activeCompany.settings.statementFooter,
+        currency: "INR" as BusinessCurrency,
       },
-      [],
-    );
+      print: {
+        ...activeCompany.settings.print,
+      },
+      appearance: {
+        ...appearance,
+      },
+    }),
+    [activeCompany, appearance],
+  );
 
   const updateSettings =
     useCallback(
       (patch: AppSettingsPatch) => {
-        return commitSettings(
-          mergeSettings(
-            settingsRef.current,
-            patch,
-          ),
-        );
+        return applySettingsPatch(patch);
       },
-      [commitSettings],
+      [applySettingsPatch],
     );
 
   const updateBusinessSettings =
@@ -411,78 +391,67 @@ export function SettingsProvider({
 
   const resetBusinessSettings =
     useCallback(() => {
-      return commitSettings({
-        ...settingsRef.current,
+      return applySettingsPatch({
         business: {
           ...DEFAULT_BUSINESS_SETTINGS,
+          companyName: activeCompany.name,
         },
       });
-    }, [commitSettings]);
+    }, [activeCompany.name, applySettingsPatch]);
 
   const resetPrintSettings =
     useCallback(() => {
-      return commitSettings({
-        ...settingsRef.current,
+      return applySettingsPatch({
         print: {
           ...DEFAULT_PRINT_SETTINGS,
         },
       });
-    }, [commitSettings]);
+    }, [applySettingsPatch]);
 
   const resetAppearanceSettings =
     useCallback(() => {
-      return commitSettings({
-        ...settingsRef.current,
+      return applySettingsPatch({
         appearance: {
           ...DEFAULT_APPEARANCE_SETTINGS,
         },
       });
-    }, [commitSettings]);
+    }, [applySettingsPatch]);
 
   const resetAllSettings =
     useCallback(() => {
-      return commitSettings({
+      return applySettingsPatch({
         business: {
-          ...DEFAULT_SETTINGS.business,
+          ...DEFAULT_BUSINESS_SETTINGS,
+          companyName: activeCompany.name,
         },
         print: {
-          ...DEFAULT_SETTINGS.print,
+          ...DEFAULT_PRINT_SETTINGS,
         },
         appearance: {
-          ...DEFAULT_SETTINGS.appearance,
+          ...DEFAULT_APPEARANCE_SETTINGS,
         },
       });
-    }, [commitSettings]);
+    }, [activeCompany.name, applySettingsPatch]);
 
   const resetSettings =
     resetAllSettings;
 
-  const clearStorageError =
-    useCallback(() => {
-      setState((current) => ({
-        ...current,
-        storageError: null,
-      }));
-    }, []);
-
   useLayoutEffect(() => {
     return applySettingsToDocument(
-      state.settings.appearance,
-      state.settings.print.fontSize,
+      settings.appearance,
+      settings.print.fontSize,
     );
   }, [
-    state.settings.appearance,
-    state.settings.print.fontSize,
+    settings.appearance,
+    settings.print.fontSize,
   ]);
 
   const contextValue =
     useMemo<SettingsContextValue>(
       () => ({
-        settings: state.settings,
-        storageError:
-          state.storageError,
-        isPersisted:
-          state.isPersisted,
+        settings,
+        storageError,
+        isPersisted,
         updateSettings,
         updateBusinessSettings,
         updatePrintSettings,
@@ -501,9 +470,9 @@ export function SettingsProvider({
         resetBusinessSettings,
         resetPrintSettings,
         resetSettings,
-        state.isPersisted,
-        state.settings,
-        state.storageError,
+        isPersisted,
+        settings,
+        storageError,
         updateAppearanceSettings,
         updateBusinessSettings,
         updatePrintSettings,

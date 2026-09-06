@@ -27,7 +27,7 @@ import ConfirmDialog from "../../components/ui/ConfirmDialog";
 
 import {
   useLedger,
-} from "../../context/LedgerContext";
+} from "../../hooks/useLedger";
 
 import {
   formatCurrency,

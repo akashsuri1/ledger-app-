@@ -1,5 +1,9 @@
 import Modal from "./Modal";
 
+import {
+  useId,
+} from "react";
+
 interface ConfirmDialogProps {
   open: boolean;
   title: string;
@@ -21,20 +25,27 @@ export default function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const descriptionId = useId();
+
   return (
     <Modal
       open={open}
       onClose={onCancel}
       title={title}
+      ariaDescribedBy={descriptionId}
     >
-      <p className="text-sm leading-6 text-slate-600">
+      <p
+        id={descriptionId}
+        className="break-all text-sm leading-6 text-slate-600"
+      >
         {description}
       </p>
 
-      <div className="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-5">
+      <div className="mt-6 flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
         <button
           type="button"
           onClick={onCancel}
+          data-modal-initial-focus
           className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
         >
           {cancelLabel}

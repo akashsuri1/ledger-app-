@@ -1,5 +1,5 @@
 {
-  "name": "ledger-app",
+  "name": "ledgerflow",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -7,6 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test": "npm run test:workspace && npm run test:ui",
+    "test:ui": "rolldown scripts/ui-smoke.tsx --format esm --platform node --file node_modules/.ledgerflow-ui-smoke.mjs && node node_modules/.ledgerflow-ui-smoke.mjs",
+    "test:workspace": "rolldown scripts/workspace-smoke.ts --format esm --platform node --file node_modules/.ledgerflow-workspace-smoke.mjs && node node_modules/.ledgerflow-workspace-smoke.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

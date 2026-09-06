@@ -4,10 +4,13 @@ import Sidebar from "./Sidebar";
 import Header from "./Header";
 
 import { TransactionModalProvider } from "../../context/TransactionModalContext";
+import { useLedger } from "../../hooks/useLedger";
 
 export default function AppLayout() {
+  const { activeCompanyId } = useLedger();
+
   return (
-    <TransactionModalProvider>
+    <TransactionModalProvider key={activeCompanyId}>
       <div className="flex min-h-screen bg-slate-50">
         <Sidebar />
 

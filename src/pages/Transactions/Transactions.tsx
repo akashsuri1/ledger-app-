@@ -1,5 +1,4 @@
 import {
-  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -26,11 +25,11 @@ import { toast } from "sonner";
 
 import {
   useLedger,
-} from "../../context/LedgerContext";
+} from "../../hooks/useLedger";
 
 import {
   useTransactionModal,
-} from "../../context/TransactionModalContext";
+} from "../../hooks/useTransactionModal";
 
 import TransactionDetailsModal from "../../components/transactions/TransactionDetailsModal";
 
@@ -45,13 +44,14 @@ import {
 import {
   formatTransactionDateTime,
 } from "../../utils/dateTime";
+import { paginateItems } from "../../utils/pagination";
 
 type TransactionTypeFilter =
   | "ALL"
   | "CREDIT"
   | "DEBIT";
 
-export default function Transactions() {
+function TransactionsWorkspace() {
   const [
     searchParams,
     setSearchParams,
@@ -114,7 +114,19 @@ export default function Transactions() {
     setSelectedTransactionId,
   ] =
     useState<number | null>(
-      null,
+      () => {
+        const value = Number(
+          searchParams.get("transaction"),
+        );
+
+        return Number.isSafeInteger(value) &&
+          value > 0 &&
+          transactions.some(
+            (transaction) => transaction.id === value,
+          )
+          ? value
+          : null;
+      },
     );
 
   const [
@@ -132,52 +144,6 @@ export default function Transactions() {
     useState<number | null>(
       null,
     );
-
-  /*
-   * Open a specific transaction
-   * when navigating from header search:
-   *
-   * /transactions?transaction=101
-   */
-  useEffect(() => {
-    const transactionParam =
-      searchParams.get(
-        "transaction",
-      );
-
-    if (!transactionParam) {
-      return;
-    }
-
-    const transactionId =
-      Number(
-        transactionParam,
-      );
-
-    if (
-      Number.isNaN(
-        transactionId,
-      )
-    ) {
-      return;
-    }
-
-    const exists =
-      transactions.some(
-        (transaction) =>
-          transaction.id ===
-          transactionId,
-      );
-
-    if (exists) {
-      setSelectedTransactionId(
-        transactionId,
-      );
-    }
-  }, [
-    searchParams,
-    transactions,
-  ]);
 
   /*
    * SUMMARY
@@ -344,69 +310,16 @@ export default function Transactions() {
       toDate,
     ]);
 
-  /*
-   * Reset pagination when
-   * filters change.
-   */
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [
-    search,
-    partyFilter,
-    regionFilter,
-    typeFilter,
-    fromDate,
-    toDate,
-    pageSize,
-  ]);
-
-  const totalPages =
-    Math.max(
-      1,
-      Math.ceil(
-        filteredTransactions.length /
-          pageSize,
-      ),
-    );
-
-  useEffect(() => {
-    if (
-      currentPage >
-      totalPages
-    ) {
-      setCurrentPage(
-        totalPages,
-      );
-    }
-  }, [
+  const pagination = paginateItems(
+    filteredTransactions,
     currentPage,
-    totalPages,
-  ]);
-
-  const startIndex =
-    (currentPage - 1) *
-    pageSize;
-
-  const paginatedTransactions =
-    filteredTransactions.slice(
-      startIndex,
-      startIndex +
-        pageSize,
-    );
-
-  const firstVisible =
-    filteredTransactions.length ===
-    0
-      ? 0
-      : startIndex + 1;
-
-  const lastVisible =
-    Math.min(
-      startIndex +
-        pageSize,
-      filteredTransactions.length,
-    );
+    pageSize,
+  );
+  const paginatedTransactions = pagination.items;
+  const visiblePage = pagination.page;
+  const totalPages = pagination.totalPages;
+  const firstVisible = pagination.firstVisible;
+  const lastVisible = pagination.lastVisible;
 
   /*
    * DELETE INFO
@@ -442,6 +355,7 @@ export default function Transactions() {
     setTypeFilter("ALL");
     setFromDate("");
     setToDate("");
+    setCurrentPage(1);
   }
 
   function closeTransactionDetails() {
@@ -612,11 +526,12 @@ export default function Transactions() {
 
                 <input
                   value={search}
-                  onChange={(event) =>
+                  onChange={(event) => {
                     setSearch(
                       event.target.value,
-                    )
-                  }
+                    );
+                    setCurrentPage(1);
+                  }}
                   placeholder="Search party, description, notes, attachment or region..."
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm outline-none transition focus:border-slate-400 focus:bg-white"
                 />
@@ -652,11 +567,12 @@ export default function Transactions() {
                   value={
                     partyFilter
                   }
-                  onChange={(event) =>
+                  onChange={(event) => {
                     setPartyFilter(
                       event.target.value,
-                    )
-                  }
+                    );
+                    setCurrentPage(1);
+                  }}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none"
                 >
                   <option value="ALL">
@@ -691,11 +607,12 @@ export default function Transactions() {
                   value={
                     regionFilter
                   }
-                  onChange={(event) =>
+                  onChange={(event) => {
                     setRegionFilter(
                       event.target.value,
-                    )
-                  }
+                    );
+                    setCurrentPage(1);
+                  }}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none"
                 >
                   <option value="ALL">
@@ -730,11 +647,12 @@ export default function Transactions() {
                   value={
                     typeFilter
                   }
-                  onChange={(event) =>
+                  onChange={(event) => {
                     setTypeFilter(
                       event.target.value as TransactionTypeFilter,
-                    )
-                  }
+                    );
+                    setCurrentPage(1);
+                  }}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none"
                 >
                   <option value="ALL">
@@ -761,11 +679,12 @@ export default function Transactions() {
                   value={
                     fromDate
                   }
-                  onChange={(event) =>
+                  onChange={(event) => {
                     setFromDate(
                       event.target.value,
-                    )
-                  }
+                    );
+                    setCurrentPage(1);
+                  }}
                   className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none"
                 />
               </div>
@@ -778,11 +697,12 @@ export default function Transactions() {
                 <input
                   type="date"
                   value={toDate}
-                  onChange={(event) =>
+                  onChange={(event) => {
                     setToDate(
                       event.target.value,
-                    )
-                  }
+                    );
+                    setCurrentPage(1);
+                  }}
                   className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none"
                 />
               </div>
@@ -1017,13 +937,14 @@ export default function Transactions() {
 
               <select
                 value={pageSize}
-                onChange={(event) =>
+                onChange={(event) => {
                   setPageSize(
                     Number(
                       event.target.value,
                     ),
-                  )
-                }
+                  );
+                  setCurrentPage(1);
+                }}
                 className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-600 outline-none"
               >
                 <option value={10}>
@@ -1044,15 +965,11 @@ export default function Transactions() {
               <button
                 type="button"
                 disabled={
-                  currentPage === 1
+                  visiblePage === 1
                 }
                 onClick={() =>
                   setCurrentPage(
-                    (previous) =>
-                      Math.max(
-                        1,
-                        previous - 1,
-                      ),
+                    Math.max(1, visiblePage - 1),
                   )
                 }
                 className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
@@ -1065,7 +982,7 @@ export default function Transactions() {
               <span className="text-sm text-slate-600">
                 Page{" "}
                 <strong>
-                  {currentPage}
+                  {visiblePage}
                 </strong>{" "}
                 of{" "}
                 <strong>
@@ -1076,16 +993,12 @@ export default function Transactions() {
               <button
                 type="button"
                 disabled={
-                  currentPage ===
+                  visiblePage ===
                   totalPages
                 }
                 onClick={() =>
                   setCurrentPage(
-                    (previous) =>
-                      Math.min(
-                        totalPages,
-                        previous + 1,
-                      ),
+                    Math.min(totalPages, visiblePage + 1),
                   )
                 }
                 className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
@@ -1176,5 +1089,15 @@ export default function Transactions() {
         }
       />
     </>
+  );
+}
+
+export default function Transactions() {
+  const [searchParams] = useSearchParams();
+
+  return (
+    <TransactionsWorkspace
+      key={searchParams.get("transaction") ?? "transaction-list"}
+    />
   );
 }

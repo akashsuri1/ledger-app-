@@ -28,14 +28,14 @@ createRoot(
   )!,
 ).render(
   <StrictMode>
-    <SettingsProvider>
-      <BrowserRouter>
-        <LedgerProvider>
+    <LedgerProvider>
+      <SettingsProvider>
+        <BrowserRouter>
           <App />
-        </LedgerProvider>
-      </BrowserRouter>
+        </BrowserRouter>
 
-      <SettingsAwareToaster />
-    </SettingsProvider>
+        <SettingsAwareToaster />
+      </SettingsProvider>
+    </LedgerProvider>
   </StrictMode>,
 );

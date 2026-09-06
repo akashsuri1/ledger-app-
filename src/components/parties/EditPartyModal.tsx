@@ -1,5 +1,4 @@
 import {
-  useEffect,
   useState,
 } from "react";
 
@@ -13,7 +12,7 @@ import Modal from "../ui/Modal";
 
 import {
   useLedger,
-} from "../../context/LedgerContext";
+} from "../../hooks/useLedger";
 
 interface EditPartyModalProps {
   open: boolean;
@@ -21,7 +20,7 @@ interface EditPartyModalProps {
   onClose: () => void;
 }
 
-export default function EditPartyModal({
+function EditPartyModalContent({
   open,
   partyId,
   onClose,
@@ -41,41 +40,26 @@ export default function EditPartyModal({
         );
 
   const [name, setName] =
-    useState("");
+    useState(party?.name ?? "");
 
   const [phone, setPhone] =
-    useState("");
+    useState(party?.phone ?? "");
 
   const [
     regionId,
     setRegionId,
-  ] = useState("");
+  ] = useState(
+    party?.regionId.toString() ?? "",
+  );
 
   const [address, setAddress] =
-    useState("");
+    useState(party?.address ?? "");
 
   const [gstin, setGstin] =
-    useState("");
+    useState(party?.gstin ?? "");
 
   const [notes, setNotes] =
-    useState("");
-
-  useEffect(() => {
-    if (!party) {
-      return;
-    }
-
-    setName(party.name);
-    setPhone(party.phone);
-
-    setRegionId(
-      party.regionId.toString(),
-    );
-
-    setAddress(party.address);
-    setGstin(party.gstin);
-    setNotes(party.notes);
-  }, [party]);
+    useState(party?.notes ?? "");
 
   if (!party) {
     return (
@@ -319,5 +303,16 @@ export default function EditPartyModal({
         </div>
       </form>
     </Modal>
+  );
+}
+
+export default function EditPartyModal(
+  props: EditPartyModalProps,
+) {
+  return (
+    <EditPartyModalContent
+      key={props.partyId ?? "no-party"}
+      {...props}
+    />
   );
 }

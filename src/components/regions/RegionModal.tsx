@@ -1,5 +1,4 @@
 import {
-  useEffect,
   useState,
 } from "react";
 
@@ -13,7 +12,7 @@ import Modal from "../ui/Modal";
 
 import {
   useLedger,
-} from "../../context/LedgerContext";
+} from "../../hooks/useLedger";
 
 interface RegionModalProps {
   open: boolean;
@@ -23,7 +22,7 @@ interface RegionModalProps {
   onClose: () => void;
 }
 
-export default function RegionModal({
+function RegionModalContent({
   open,
   regionId,
   onClose,
@@ -43,25 +42,10 @@ export default function RegionModal({
         );
 
   const [name, setName] =
-    useState("");
+    useState(region?.name ?? "");
 
   const isEditing =
     regionId !== null;
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    if (region) {
-      setName(region.name);
-    } else {
-      setName("");
-    }
-  }, [
-    open,
-    region,
-  ]);
 
   function closeModal() {
     setName("");
@@ -177,5 +161,16 @@ export default function RegionModal({
         </div>
       </form>
     </Modal>
+  );
+}
+
+export default function RegionModal(
+  props: RegionModalProps,
+) {
+  return (
+    <RegionModalContent
+      key={`${props.open ? "open" : "closed"}-${props.regionId ?? "new"}`}
+      {...props}
+    />
   );
 }

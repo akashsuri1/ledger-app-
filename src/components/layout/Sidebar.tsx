@@ -11,6 +11,9 @@ import {
 
 import { NavLink } from "react-router-dom";
 
+import CompanySwitcher from "../companies/CompanySwitcher";
+import { useLedger } from "../../hooks/useLedger";
+
 const menuItems = [
   {
     name: "Dashboard",
@@ -40,6 +43,14 @@ const menuItems = [
 ];
 
 export default function Sidebar() {
+  const {
+    storageError,
+    isPersisted,
+  } = useLedger();
+
+  const storageHealthy =
+    isPersisted && !storageError;
+
   const navStyle = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200 ${
       isActive
@@ -50,7 +61,7 @@ export default function Sidebar() {
   return (
     <aside
       data-app-sidebar
-      className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-slate-950 text-white lg:flex"
+      className="sticky top-0 z-40 hidden h-screen w-64 shrink-0 flex-col bg-slate-950 text-white lg:flex"
     >
 
       {/* Logo */}
@@ -71,6 +82,8 @@ export default function Sidebar() {
           </div>
         </div>
       </div>
+
+      <CompanySwitcher />
 
       {/* Main navigation */}
       <nav className="flex-1 overflow-y-auto p-4">
@@ -112,18 +125,36 @@ export default function Sidebar() {
         </div>
 
         {/* Local storage status */}
-        <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/80 p-4">
+        <div
+          role={storageHealthy ? "status" : "alert"}
+          title={storageError?.message}
+          className="mt-4 rounded-xl border border-slate-800 bg-slate-900/80 p-4"
+        >
 
           <div className="flex items-center gap-2">
-            <div className="h-2 w-2 rounded-full bg-emerald-400" />
+            <div
+              className={`h-2 w-2 rounded-full ${
+                storageHealthy
+                  ? "bg-emerald-400"
+                  : "bg-amber-400"
+              }`}
+            />
 
             <p className="text-xs font-medium text-slate-300">
-              Local storage
+              {storageHealthy
+                ? "Saved locally"
+                : storageError
+                  ? "Storage issue"
+                  : "Not saved yet"}
             </p>
           </div>
 
           <p className="mt-1.5 text-xs leading-5 text-slate-500">
-            Your data stays on this device
+            {storageHealthy
+              ? "Ledger data is saved on this device"
+              : storageError
+                ? "Changes may not survive a refresh"
+                : "Waiting for local storage"}
           </p>
 
         </div>

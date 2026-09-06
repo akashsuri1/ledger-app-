@@ -336,15 +336,21 @@ html[data-theme="dark"] [class~="hover:bg-amber-100"]:not(
   background-color: rgb(146 64 14 / 42%) !important;
 }
 
-html[data-theme="dark"] [class~="text-blue-900"]:not(
-    [data-print-root] *
-  ) {
+html[data-theme="dark"] :where(
+    [class~="text-blue-600"],
+    [class~="text-blue-700"],
+    [class~="text-blue-800"],
+    [class~="text-blue-900"]
+  ):not([data-print-root] *) {
   color: #bfdbfe !important;
 }
 
 html[data-theme="dark"] :where(
     [class~="text-emerald-600"],
-    [class~="text-emerald-700"]
+    [class~="text-emerald-700"],
+    [class~="text-emerald-800"],
+    [class~="text-emerald-900"],
+    [class~="text-emerald-950"]
   ):not([data-print-root] *) {
   color: #6ee7b7 !important;
 }
@@ -362,7 +368,8 @@ html[data-theme="dark"] :where(
     [class~="text-amber-600"],
     [class~="text-amber-700"],
     [class~="text-amber-800"],
-    [class~="text-amber-900"]
+    [class~="text-amber-900"],
+    [class~="text-amber-950"]
   ):not([data-print-root] *) {
   color: #fcd34d !important;
 }
@@ -372,6 +379,13 @@ html[data-theme="dark"] :where(
     [class~="border-blue-300"]
   ):not([data-print-root] *) {
   border-color: #1d4ed8 !important;
+}
+
+html[data-theme="dark"] :where(
+    [class~="border-emerald-200"],
+    [class~="border-emerald-300"]
+  ):not([data-print-root] *) {
+  border-color: #047857 !important;
 }
 
 html[data-theme="dark"] :where(

@@ -7,18 +7,22 @@ import type {
 export const seedRegions: Region[] = [
   {
     id: 1,
+    companyId: 1,
     name: "Punjab",
   },
   {
     id: 2,
+    companyId: 1,
     name: "Delhi",
   },
   {
     id: 3,
+    companyId: 1,
     name: "Haryana",
   },
   {
     id: 4,
+    companyId: 1,
     name: "Himachal Pradesh",
   },
 ];
@@ -26,6 +30,7 @@ export const seedRegions: Region[] = [
 export const seedParties: Party[] = [
   {
     id: 1,
+    companyId: 1,
     name: "ABC Traders",
     phone: "9876543210",
     regionId: 1,
@@ -37,6 +42,7 @@ export const seedParties: Party[] = [
 
   {
     id: 2,
+    companyId: 1,
     name: "Sharma & Co.",
     phone: "9812345678",
     regionId: 3,
@@ -48,6 +54,7 @@ export const seedParties: Party[] = [
 
   {
     id: 3,
+    companyId: 1,
     name: "XYZ Suppliers",
     phone: "9898989898",
     regionId: 2,
@@ -59,6 +66,7 @@ export const seedParties: Party[] = [
 
   {
     id: 4,
+    companyId: 1,
     name: "Kapoor Enterprises",
     phone: "9877000000",
     regionId: 1,
@@ -70,6 +78,7 @@ export const seedParties: Party[] = [
 
   {
     id: 5,
+    companyId: 1,
     name: "Modern Agencies",
     phone: "9800000000",
     regionId: 4,
@@ -83,6 +92,7 @@ export const seedParties: Party[] = [
 export const seedTransactions: LedgerTransaction[] = [
   {
     id: 101,
+    companyId: 1,
     partyId: 1,
     type: "CREDIT",
     amount: 25000,
@@ -99,6 +109,7 @@ export const seedTransactions: LedgerTransaction[] = [
 
   {
     id: 102,
+    companyId: 1,
     partyId: 1,
     type: "DEBIT",
     amount: 10000,
@@ -114,6 +125,7 @@ export const seedTransactions: LedgerTransaction[] = [
 
   {
     id: 103,
+    companyId: 1,
     partyId: 1,
     type: "CREDIT",
     amount: 30000,
@@ -130,6 +142,7 @@ export const seedTransactions: LedgerTransaction[] = [
 
   {
     id: 201,
+    companyId: 1,
     partyId: 2,
     type: "CREDIT",
     amount: 44500,
@@ -146,6 +159,7 @@ export const seedTransactions: LedgerTransaction[] = [
 
   {
     id: 202,
+    companyId: 1,
     partyId: 2,
     type: "DEBIT",
     amount: 12500,
@@ -161,6 +175,7 @@ export const seedTransactions: LedgerTransaction[] = [
 
   {
     id: 301,
+    companyId: 1,
     partyId: 3,
     type: "DEBIT",
     amount: 18500,
@@ -177,6 +192,7 @@ export const seedTransactions: LedgerTransaction[] = [
 
   {
     id: 401,
+    companyId: 1,
     partyId: 4,
     type: "CREDIT",
     amount: 90000,
@@ -193,6 +209,7 @@ export const seedTransactions: LedgerTransaction[] = [
 
   {
     id: 402,
+    companyId: 1,
     partyId: 4,
     type: "DEBIT",
     amount: 18000,
@@ -208,6 +225,7 @@ export const seedTransactions: LedgerTransaction[] = [
 
   {
     id: 501,
+    companyId: 1,
     partyId: 5,
     type: "DEBIT",
     amount: 12500,

@@ -23,9 +23,9 @@ import {
   roundCurrency,
 } from "../../utils/currency";
 
-import { useLedger } from "../../context/LedgerContext";
+import { useLedger } from "../../hooks/useLedger";
 
-import { useTransactionModal } from "../../context/TransactionModalContext";
+import { useTransactionModal } from "../../hooks/useTransactionModal";
 
 export default function Dashboard() {
   const { openTransactionModal } = useTransactionModal();

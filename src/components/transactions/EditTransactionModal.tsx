@@ -1,5 +1,4 @@
 import {
-  useEffect,
   useState,
 } from "react";
 
@@ -17,7 +16,7 @@ import { toast } from "sonner";
 
 import Modal from "../ui/Modal";
 
-import { useLedger } from "../../context/LedgerContext";
+import { useLedger } from "../../hooks/useLedger";
 
 interface EditTransactionModalProps {
   open: boolean;
@@ -25,7 +24,7 @@ interface EditTransactionModalProps {
   onClose: () => void;
 }
 
-export default function EditTransactionModal({
+function EditTransactionModalContent({
   open,
   transactionId,
   onClose,
@@ -46,71 +45,43 @@ export default function EditTransactionModal({
         );
 
   const [partyId, setPartyId] =
-    useState("");
+    useState(
+      transaction?.partyId.toString() ?? "",
+    );
 
   const [type, setType] =
     useState<
       "CREDIT" | "DEBIT"
-    >("CREDIT");
+    >(transaction?.type ?? "CREDIT");
 
   const [amount, setAmount] =
-    useState("");
+    useState(
+      transaction?.amount.toString() ?? "",
+    );
 
   const [
     transactionDateTime,
     setTransactionDateTime,
-  ] = useState("");
+  ] = useState(
+    transaction?.transactionDateTime.slice(0, 16) ?? "",
+  );
 
   const [
     description,
     setDescription,
-  ] = useState("");
+  ] = useState(
+    transaction?.description ?? "",
+  );
 
   const [notes, setNotes] =
-    useState("");
+    useState(transaction?.notes ?? "");
 
   const [
     attachmentName,
     setAttachmentName,
-  ] = useState("");
-
-  useEffect(() => {
-    if (!transaction) {
-      return;
-    }
-
-    setPartyId(
-      transaction.partyId.toString(),
-    );
-
-    setType(
-      transaction.type,
-    );
-
-    setAmount(
-      transaction.amount.toString(),
-    );
-
-    setTransactionDateTime(
-      transaction.transactionDateTime.slice(
-        0,
-        16,
-      ),
-    );
-
-    setDescription(
-      transaction.description,
-    );
-
-    setNotes(
-      transaction.notes,
-    );
-
-    setAttachmentName(
-      transaction.attachmentName ??
-        "",
-    );
-  }, [transaction]);
+  ] = useState(
+    transaction?.attachmentName ?? "",
+  );
 
   if (!transaction) {
     return (
@@ -511,5 +482,16 @@ export default function EditTransactionModal({
         </div>
       </form>
     </Modal>
+  );
+}
+
+export default function EditTransactionModal(
+  props: EditTransactionModalProps,
+) {
+  return (
+    <EditTransactionModalContent
+      key={props.transactionId ?? "no-transaction"}
+      {...props}
+    />
   );
 }

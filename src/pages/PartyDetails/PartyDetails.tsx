@@ -32,11 +32,11 @@ import ConfirmDialog from "../../components/ui/ConfirmDialog";
 
 import {
   useLedger,
-} from "../../context/LedgerContext";
+} from "../../hooks/useLedger";
 
 import {
   useTransactionModal,
-} from "../../context/TransactionModalContext";
+} from "../../hooks/useTransactionModal";
 
 import {
   formatCurrency,

@@ -14,7 +14,7 @@ import Modal from "../ui/Modal";
 
 import {
   useLedger,
-} from "../../context/LedgerContext";
+} from "../../hooks/useLedger";
 
 interface AddPartyModalProps {
   open: boolean;

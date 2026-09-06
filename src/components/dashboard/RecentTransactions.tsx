@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-import { useLedger } from "../../context/LedgerContext";
+import { useLedger } from "../../hooks/useLedger";
 import { formatCurrency } from "../../utils/currency";
 import { formatTransactionDateTime } from "../../utils/dateTime";
 

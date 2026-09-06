@@ -1,14 +1,37 @@
+import type {
+  PrintSettings,
+} from "./settings";
+
 export type TransactionType =
   | "CREDIT"
   | "DEBIT";
 
+export interface CompanyLedgerSettings {
+  statementHeader: string;
+  statementFooter: string;
+  print: PrintSettings;
+}
+
+export interface Company {
+  id: number;
+  name: string;
+  address: string;
+  phone: string;
+  gstin: string;
+  email: string;
+  createdAt: string;
+  settings: CompanyLedgerSettings;
+}
+
 export interface Region {
   id: number;
+  companyId: number;
   name: string;
 }
 
 export interface Party {
   id: number;
+  companyId: number;
   name: string;
   phone: string;
   regionId: number;
@@ -20,6 +43,8 @@ export interface Party {
 
 export interface LedgerTransaction {
   id: number;
+
+  companyId: number;
 
   partyId: number;
 
@@ -72,3 +97,14 @@ export interface NewTransaction {
 
 export type UpdateTransaction =
   Partial<NewTransaction>;
+
+export interface NewCompany {
+  name: string;
+  address?: string;
+  phone?: string;
+  gstin?: string;
+  email?: string;
+}
+
+export type UpdateCompany =
+  Partial<NewCompany>;

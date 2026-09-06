@@ -15,7 +15,7 @@ import { toast } from "sonner";
 
 import Modal from "../ui/Modal";
 
-import { useLedger } from "../../context/LedgerContext";
+import { useLedger } from "../../hooks/useLedger";
 
 import { formatCurrency } from "../../utils/currency";
 

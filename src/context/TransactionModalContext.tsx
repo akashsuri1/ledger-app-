@@ -1,26 +1,16 @@
 import {
-  createContext,
-  useContext,
   useState,
 } from "react";
 
 import type { ReactNode } from "react";
 
 import AddTransactionModal from "../components/dashboard/AddTransactionModal";
-
-type TransactionType = "CREDIT" | "DEBIT";
-
-interface TransactionModalContextType {
-  openTransactionModal: (
-    type?: TransactionType,
-    partyId?: number,
-  ) => void;
-}
-
-const TransactionModalContext =
-  createContext<TransactionModalContextType | undefined>(
-    undefined,
-  );
+import {
+  TransactionModalContext,
+} from "./transaction-modal-context";
+import type {
+  TransactionModalType,
+} from "./transaction-modal-context";
 
 export function TransactionModalProvider({
   children,
@@ -30,13 +20,13 @@ export function TransactionModalProvider({
   const [open, setOpen] = useState(false);
 
   const [type, setType] =
-    useState<TransactionType>("CREDIT");
+    useState<TransactionModalType>("CREDIT");
 
   const [selectedPartyId, setSelectedPartyId] =
     useState<number | undefined>(undefined);
 
   function openTransactionModal(
-    selectedType: TransactionType = "CREDIT",
+    selectedType: TransactionModalType = "CREDIT",
     partyId?: number,
   ) {
     setType(selectedType);
@@ -64,18 +54,4 @@ export function TransactionModalProvider({
       />
     </TransactionModalContext.Provider>
   );
-}
-
-export function useTransactionModal() {
-  const context = useContext(
-    TransactionModalContext,
-  );
-
-  if (!context) {
-    throw new Error(
-      "useTransactionModal must be used inside TransactionModalProvider",
-    );
-  }
-
-  return context;
 }

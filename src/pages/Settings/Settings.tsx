@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
+import { useLedger } from "../../hooks/useLedger";
 import { useSettings } from "../../hooks/useSettings";
 import type {
   AccentColor,
@@ -235,7 +236,11 @@ function SectionHeading({
   );
 }
 
-export default function Settings() {
+function SettingsWorkspace() {
+  const {
+    getWorkspaceSnapshot,
+    replaceWorkspace,
+  } = useLedger();
   const {
     settings,
     storageError,
@@ -249,9 +254,24 @@ export default function Settings() {
     cloneSettings(settings),
   );
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [storageRecoveryOpen, setStorageRecoveryOpen] = useState(false);
+
+  const requiresExplicitStorageRecovery = Boolean(
+    storageError &&
+      [
+        "READ_FAILED",
+        "PARSE_FAILED",
+        "INVALID_DATA",
+        "UNSUPPORTED_VERSION",
+      ].includes(storageError.code),
+  );
 
   const phone = draft.business.phone.trim();
   const email = draft.business.email.trim();
+  const companyName = draft.business.companyName.trim();
+  const companyNameError = companyName
+    ? ""
+    : "Company name is required.";
   const phoneError =
     phone !== "" && !/^\d{10}$/.test(phone)
       ? "Enter a 10-digit phone number, or leave this field blank."
@@ -260,7 +280,9 @@ export default function Settings() {
     email !== "" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
       ? "Enter a valid email address, or leave this field blank."
       : "";
-  const hasErrors = Boolean(phoneError || emailError);
+  const hasErrors = Boolean(
+    companyNameError || phoneError || emailError,
+  );
   const isDirty = JSON.stringify(draft) !== JSON.stringify(settings);
 
   const inputClass =
@@ -304,8 +326,15 @@ export default function Settings() {
       toast.success("Settings saved", {
         description: "Your preferences are saved in this browser.",
       });
-    } else {
+    } else if (
+      result.error.code === "WRITE_FAILED" ||
+      result.error.code === "STORAGE_UNAVAILABLE"
+    ) {
       toast.error("Settings applied for this session only", {
+        description: result.error.message,
+      });
+    } else {
+      toast.error("Settings could not be saved", {
         description: result.error.message,
       });
     }
@@ -323,7 +352,9 @@ export default function Settings() {
 
   function confirmResetAllSettings() {
     const result = resetAllSettings();
-    setDraft(cloneSettings(DEFAULT_SETTINGS));
+    const resetDraft = cloneSettings(DEFAULT_SETTINGS);
+    resetDraft.business.companyName = settings.business.companyName;
+    setDraft(resetDraft);
     setResetConfirmOpen(false);
 
     if (result.ok) {
@@ -336,6 +367,31 @@ export default function Settings() {
         description: result.error.message,
       });
     }
+  }
+
+  function persistCurrentWorkspace() {
+    const result = replaceWorkspace(getWorkspaceSnapshot());
+    setStorageRecoveryOpen(false);
+
+    if (result.ok) {
+      toast.success("Workspace storage recovered", {
+        description:
+          "The current companies, ledger data, and settings are saved in this browser.",
+      });
+    } else {
+      toast.error("Workspace still could not be saved", {
+        description: result.error.message,
+      });
+    }
+  }
+
+  function retryWorkspaceStorage() {
+    if (requiresExplicitStorageRecovery) {
+      setStorageRecoveryOpen(true);
+      return;
+    }
+
+    persistCurrentWorkspace();
   }
 
   return (
@@ -399,7 +455,7 @@ export default function Settings() {
               aria-hidden="true"
             />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold">Settings storage issue</p>
+              <p className="text-sm font-semibold">Workspace storage issue</p>
               <p className="mt-1 text-sm leading-6">
                 {storageError?.message ??
                   "Settings are active for this session, but could not be saved in this browser."}
@@ -412,10 +468,12 @@ export default function Settings() {
             </div>
             <button
               type="button"
-              onClick={saveChanges}
+              onClick={retryWorkspaceStorage}
               className="shrink-0 rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-medium transition hover:bg-amber-100"
             >
-              Retry saving
+              {requiresExplicitStorageRecovery
+                ? "Review recovery"
+                : "Retry saving"}
             </button>
           </div>
         </div>
@@ -455,7 +513,7 @@ export default function Settings() {
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               <SectionHeading
                 title="Business profile"
-                description="These details identify your business on printable statements and reports. Every field is optional."
+                description={`These details identify ${settings.business.companyName} on printable statements and reports. Only the company name is required.`}
               />
 
               <div className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6">
@@ -464,12 +522,28 @@ export default function Settings() {
                   <input
                     type="text"
                     value={draft.business.companyName}
+                    aria-invalid={Boolean(companyNameError)}
+                    aria-describedby={
+                      companyNameError ? "company-name-error" : undefined
+                    }
                     onChange={(event) =>
                       updateBusiness({ companyName: event.target.value })
                     }
                     placeholder="Your business name"
-                    className={inputClass}
+                    className={`${inputClass} ${
+                      companyNameError
+                        ? "border-rose-400 focus:border-rose-500 focus:ring-rose-100"
+                        : ""
+                    }`}
                   />
+                  {companyNameError && (
+                    <span
+                      id="company-name-error"
+                      className="mt-1.5 block text-xs font-normal text-rose-600"
+                    >
+                      {companyNameError}
+                    </span>
+                  )}
                 </label>
 
                 <label className="text-sm font-medium text-slate-700">
@@ -809,7 +883,7 @@ export default function Settings() {
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               <SectionHeading
                 title="Statement & print defaults"
-                description="Set the initial layout and information shown when you prepare reports. Report options can still be changed before printing."
+                description={`Set the report defaults for ${settings.business.companyName}. Other companies keep their own statement preferences.`}
               />
 
               <div className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6">
@@ -967,9 +1041,9 @@ export default function Settings() {
                     Open Backup & Restore
                   </h3>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                    Backup and restore actions will be added in the dedicated
-                    data-safety milestone. You can open its workspace now, but
-                    it does not export or replace ledger data yet.
+                    Download one versioned JSON backup containing every company,
+                    ledger record, company preference, and application appearance
+                    setting. You can also validate and safely restore a full backup.
                   </p>
                   <Link
                     to="/backup"
@@ -1002,9 +1076,9 @@ export default function Settings() {
                         Reset all settings
                       </h3>
                       <p className="mt-1 text-sm leading-6 text-rose-800">
-                        Restore business, appearance, and statement preferences
-                        to their defaults. This never deletes or changes parties,
-                        transactions, regions, attachments, or other ledger data.
+                        Restore this company&apos;s business and statement
+                        preferences plus the application-wide appearance. Other
+                        companies and all ledger data remain unchanged.
                       </p>
                       <button
                         type="button"
@@ -1024,14 +1098,44 @@ export default function Settings() {
       </div>
 
       <ConfirmDialog
+        open={storageRecoveryOpen}
+        title="Replace unreadable saved workspace?"
+        description={`LedgerFlow reported ${storageError?.code ?? "a storage error"}. Continuing writes the safe workspace currently visible in this session over the unreadable or unsupported saved workspace. Use Backup & Restore first if you need a JSON copy of the currently visible data.`}
+        confirmLabel="Save current workspace"
+        cancelLabel="Keep saved data untouched"
+        tone="danger"
+        onCancel={() => setStorageRecoveryOpen(false)}
+        onConfirm={persistCurrentWorkspace}
+      />
+
+      <ConfirmDialog
         open={resetConfirmOpen}
         title="Reset all settings?"
-        description="Business details, appearance, and statement preferences will return to their defaults. Your parties, transactions, regions, attachments, and all other ledger data will remain untouched."
+        description={`Business and statement settings for ${settings.business.companyName}, plus the application-wide appearance, will return to defaults. Other companies and all ledger data remain untouched.`}
         confirmLabel="Reset settings"
         tone="danger"
         onCancel={() => setResetConfirmOpen(false)}
         onConfirm={confirmResetAllSettings}
       />
     </div>
+  );
+}
+
+export default function Settings() {
+  const { activeCompany } = useLedger();
+
+  const companyIdentityKey = JSON.stringify([
+    activeCompany.id,
+    activeCompany.name,
+    activeCompany.address,
+    activeCompany.phone,
+    activeCompany.gstin,
+    activeCompany.email,
+  ]);
+
+  return (
+    <SettingsWorkspace
+      key={companyIdentityKey}
+    />
   );
 }

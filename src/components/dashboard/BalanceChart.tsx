@@ -10,7 +10,7 @@ import {
   YAxis,
 } from "recharts";
 
-import { useLedger } from "../../context/LedgerContext";
+import { useLedger } from "../../hooks/useLedger";
 import { formatCurrency } from "../../utils/currency";
 
 interface BalanceChartDataPoint {

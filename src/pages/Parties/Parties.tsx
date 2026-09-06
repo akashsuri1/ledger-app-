@@ -9,6 +9,7 @@ import {
 } from "react-router-dom";
 
 import {
+  ChevronLeft,
   ChevronRight,
   MapPin,
   Pencil,
@@ -28,11 +29,12 @@ import ConfirmDialog from "../../components/ui/ConfirmDialog";
 
 import {
   useLedger,
-} from "../../context/LedgerContext";
+} from "../../hooks/useLedger";
 
 import {
   formatCurrency,
 } from "../../utils/currency";
+import { paginateItems } from "../../utils/pagination";
 
 export default function Parties() {
   const navigate =
@@ -56,6 +58,9 @@ export default function Parties() {
     search,
     setSearch,
   ] = useState("");
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const [
     addPartyOpen,
@@ -118,6 +123,7 @@ export default function Parties() {
         replace: true,
       },
     );
+    setCurrentPage(1);
   }
 
   const filteredParties =
@@ -175,6 +181,17 @@ export default function Parties() {
       selectedRegion,
       getRegionById,
     ]);
+
+  const pagination = paginateItems(
+    filteredParties,
+    currentPage,
+    pageSize,
+  );
+  const paginatedParties = pagination.items;
+  const visiblePage = pagination.page;
+  const totalPages = pagination.totalPages;
+  const firstVisible = pagination.firstVisible;
+  const lastVisible = pagination.lastVisible;
 
   const receivableParties =
     parties.filter(
@@ -329,11 +346,12 @@ export default function Parties() {
 
               <input
                 value={search}
-                onChange={(event) =>
+                onChange={(event) => {
                   setSearch(
                     event.target.value,
-                  )
-                }
+                  );
+                  setCurrentPage(1);
+                }}
                 placeholder="Search name, notes, phone, GSTIN or region..."
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm outline-none focus:border-slate-400 focus:bg-white"
               />
@@ -422,7 +440,7 @@ export default function Parties() {
                 </thead>
 
                 <tbody>
-                  {filteredParties.map(
+                  {paginatedParties.map(
                     (party) => {
                       const region =
                         getRegionById(
@@ -556,12 +574,60 @@ export default function Parties() {
             </div>
           )}
 
-          <div className="border-t border-slate-100 px-5 py-3">
-            <p className="text-xs text-slate-400">
-              Showing{" "}
-              {filteredParties.length}{" "}
-              of {parties.length} parties
-            </p>
+          <div className="flex flex-col gap-4 border-t border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-xs text-slate-500">
+                Showing {firstVisible}-{lastVisible} of{" "}
+                {filteredParties.length} filtered ({parties.length} total)
+              </p>
+
+              <select
+                value={pageSize}
+                aria-label="Parties per page"
+                onChange={(event) => {
+                  setPageSize(Number(event.target.value));
+                  setCurrentPage(1);
+                }}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 outline-none"
+              >
+                <option value={10}>10 per page</option>
+                <option value={25}>25 per page</option>
+                <option value={50}>50 per page</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                aria-label="Previous parties page"
+                disabled={visiblePage === 1}
+                onClick={() =>
+                  setCurrentPage(Math.max(1, visiblePage - 1))
+                }
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronLeft size={16} aria-hidden="true" />
+              </button>
+
+              <span className="text-sm text-slate-600">
+                Page <strong>{visiblePage}</strong> of{" "}
+                <strong>{totalPages}</strong>
+              </span>
+
+              <button
+                type="button"
+                aria-label="Next parties page"
+                disabled={visiblePage === totalPages}
+                onClick={() =>
+                  setCurrentPage(
+                    Math.min(totalPages, visiblePage + 1),
+                  )
+                }
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronRight size={16} aria-hidden="true" />
+              </button>
+            </div>
           </div>
         </div>
       </div>

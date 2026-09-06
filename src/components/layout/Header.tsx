@@ -22,11 +22,11 @@ import { toast } from "sonner";
 
 import {
   useLedger,
-} from "../../context/LedgerContext";
+} from "../../hooks/useLedger";
 
 import {
   useTransactionModal,
-} from "../../context/TransactionModalContext";
+} from "../../hooks/useTransactionModal";
 
 import {
   formatCurrency,
