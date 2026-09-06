@@ -48,7 +48,10 @@ export default function Sidebar() {
     }`;
 
   return (
-    <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-slate-950 text-white lg:flex">
+    <aside
+      data-app-sidebar
+      className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-slate-950 text-white lg:flex"
+    >
 
       {/* Logo */}
       <div className="flex h-20 shrink-0 items-center border-b border-slate-800 px-6">

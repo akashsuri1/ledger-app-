@@ -18,7 +18,10 @@ import RegionOverview from "../../components/dashboard/RegionOverview";
 import RecentTransactions from "../../components/dashboard/RecentTransactions";
 import AddPartyModal from "../../components/parties/AddPartyModal";
 
-import { formatCurrency } from "../../utils/currency";
+import {
+  formatCurrency,
+  roundCurrency,
+} from "../../utils/currency";
 
 import { useLedger } from "../../context/LedgerContext";
 
@@ -49,12 +52,14 @@ export default function Dashboard() {
 
           balances.set(
             transaction.partyId,
-            transaction.type ===
-              "CREDIT"
-              ? current +
-                  transaction.amount
-              : current -
-                  transaction.amount,
+            roundCurrency(
+              transaction.type ===
+                "CREDIT"
+                ? current +
+                    transaction.amount
+                : current -
+                    transaction.amount,
+            ),
           );
         },
       );
@@ -69,10 +74,16 @@ export default function Dashboard() {
           ) ?? 0;
 
         if (balance > 0) {
-          receivable += balance;
+          receivable =
+            roundCurrency(
+              receivable +
+                balance,
+            );
         } else if (balance < 0) {
-          payable +=
-            Math.abs(balance);
+          payable = roundCurrency(
+            payable +
+              Math.abs(balance),
+          );
         }
       });
 
@@ -80,7 +91,9 @@ export default function Dashboard() {
         receivable,
         payable,
         netBalance:
-          receivable - payable,
+          roundCurrency(
+            receivable - payable,
+          ),
         totalParties:
           parties.length,
       };

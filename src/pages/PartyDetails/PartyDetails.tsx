@@ -393,8 +393,8 @@ export default function PartyDetails() {
 
             <button
               onClick={() =>
-                toast.info(
-                  "Print preview will be implemented in the Reports module.",
+                navigate(
+                  `/reports?type=party&party=${party.id}`,
                 )
               }
               className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"

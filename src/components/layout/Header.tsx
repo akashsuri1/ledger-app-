@@ -235,7 +235,10 @@ export default function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-20 items-center gap-4 border-b border-slate-200 bg-white/95 px-6 backdrop-blur lg:px-8">
+    <header
+      data-app-header
+      className="sticky top-0 z-30 flex h-20 items-center gap-4 border-b border-slate-200 bg-white/95 px-6 backdrop-blur lg:px-8"
+    >
       {/* GLOBAL SEARCH */}
 
       <div

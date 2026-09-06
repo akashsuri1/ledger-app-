@@ -32,6 +32,10 @@ import {
   toDisplayName,
 } from "../utils/text";
 
+import {
+  roundCurrency,
+} from "../utils/currency";
+
 interface LedgerState {
   parties: Party[];
 
@@ -1024,35 +1028,37 @@ export function LedgerProvider({
   function getPartyBalance(
     partyId: number,
   ) {
-    return state.transactions
-      .filter(
-        (transaction) =>
-          transaction.partyId ===
-          partyId,
-      )
-      .reduce(
-        (
-          balance,
-          transaction,
-        ) => {
-          if (
-            transaction.type ===
-            "CREDIT"
-          ) {
+    return roundCurrency(
+      state.transactions
+        .filter(
+          (transaction) =>
+            transaction.partyId ===
+            partyId,
+        )
+        .reduce(
+          (
+            balance,
+            transaction,
+          ) => {
+            if (
+              transaction.type ===
+              "CREDIT"
+            ) {
+              return (
+                balance +
+                transaction.amount
+              );
+            }
+
             return (
-              balance +
+              balance -
               transaction.amount
             );
-          }
+          },
 
-          return (
-            balance -
-            transaction.amount
-          );
-        },
-
-        0,
-      );
+          0,
+        ),
+    );
   }
 
   function getRegionById(

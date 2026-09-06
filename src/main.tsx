@@ -8,15 +8,17 @@ import {
   BrowserRouter,
 } from "react-router-dom";
 
-import {
-  Toaster,
-} from "sonner";
-
 import App from "./App";
+
+import SettingsAwareToaster from "./components/settings/SettingsAwareToaster";
 
 import {
   LedgerProvider,
 } from "./context/LedgerContext";
+
+import {
+  SettingsProvider,
+} from "./context/SettingsProvider";
 
 import "./index.css";
 
@@ -26,16 +28,14 @@ createRoot(
   )!,
 ).render(
   <StrictMode>
-    <BrowserRouter>
-      <LedgerProvider>
-        <App />
+    <SettingsProvider>
+      <BrowserRouter>
+        <LedgerProvider>
+          <App />
+        </LedgerProvider>
+      </BrowserRouter>
 
-        <Toaster
-          position="top-right"
-          richColors
-          closeButton
-        />
-      </LedgerProvider>
-    </BrowserRouter>
+      <SettingsAwareToaster />
+    </SettingsProvider>
   </StrictMode>,
 );
