@@ -6,6 +6,9 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { TransactionModalProvider } from "../src/context/TransactionModalContext";
 import { LedgerProvider } from "../src/context/LedgerContext";
 import { SettingsProvider } from "../src/context/SettingsProvider";
+import FirstCompanySetup from "../src/components/companies/FirstCompanySetup";
+import { PartyReportFilters } from "../src/components/reports/ReportFilters";
+import type { StatementPrintPreferences } from "../src/types/reports";
 import Backup from "../src/pages/Backup/Backup";
 import Dashboard from "../src/pages/Dashboard/Dashboard";
 import NotFound from "../src/pages/NotFound/NotFound";
@@ -58,7 +61,14 @@ const checks: Array<{
   {
     name: "Transactions",
     path: "/transactions",
-    expected: ["Transactions", "Goods supplied", "10 per page"],
+    expected: [
+      "Transactions",
+      "Goods supplied",
+      "10 per page",
+      "View transaction",
+      "Edit transaction",
+      "Delete transaction",
+    ],
     element: <Transactions />,
   },
   {
@@ -122,5 +132,73 @@ for (const check of checks) {
     );
   }
 }
+
+const partyFilterPreferences: StatementPrintPreferences = {
+  transactionLimit: 20,
+  showRunningBalance: true,
+  showNotes: true,
+  showAttachment: true,
+  showTransactionTime: true,
+  showBusinessAddress: true,
+  showBusinessPhone: true,
+  showBusinessGstin: true,
+  showGeneratedDate: true,
+  orientation: "portrait",
+  customFooter: "",
+};
+
+const partyFilterMarkup = renderToStaticMarkup(
+  <PartyReportFilters
+    parties={[]}
+    regions={[]}
+    selectedPartyId=""
+    preferences={partyFilterPreferences}
+    customTransactionLimit="20"
+    usesCustomTransactionLimit
+    onTransactionLimitChange={() => undefined}
+    onPartyChange={() => undefined}
+    onCustomTransactionLimitChange={() => undefined}
+    onPreferencesChange={() => undefined}
+  />,
+);
+
+const firstCompanyMarkup = renderToStaticMarkup(
+  <MemoryRouter>
+    <FirstCompanySetup
+      onCreate={() => {
+        throw new Error("The static setup check must not submit the form.");
+      }}
+    />
+  </MemoryRouter>,
+);
+
+for (const expected of [
+  "Welcome to LedgerFlow",
+  "Create your company",
+  "Company Name *",
+  "GSTIN",
+  "Phone",
+  "Email",
+  "Address",
+  "Create Company",
+]) {
+  assert.ok(
+    firstCompanyMarkup.includes(expected),
+    `First-company setup did not render expected text: ${expected}`,
+  );
+}
+
+assert.ok(
+  partyFilterMarkup.includes("Custom number"),
+  "Party statement filters did not render the custom transaction option.",
+);
+assert.ok(
+  partyFilterMarkup.includes('type="number"'),
+  "Party statement filters did not render the custom transaction input.",
+);
+assert.ok(
+  !partyFilterMarkup.includes('type="date"'),
+  "Party statement filters unexpectedly rendered a date input.",
+);
 
 console.log("LedgerFlow page component smoke checks passed.");

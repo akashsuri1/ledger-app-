@@ -15,9 +15,11 @@ import {
   Eye,
   Filter,
   Paperclip,
+  Pencil,
   Plus,
   RotateCcw,
   Search,
+  Trash2,
   WalletCards,
 } from "lucide-react";
 
@@ -762,7 +764,9 @@ function TransactionsWorkspace() {
                       Amount
                     </th>
 
-                    <th className="w-14 px-5 py-4" />
+                    <th className="px-5 py-4 text-right font-medium">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
 
@@ -896,22 +900,55 @@ function TransactionsWorkspace() {
                           </td>
 
                           <td className="px-5 py-4">
-                            <button
-                              type="button"
-                              title="View transaction"
-                              onClick={(event) => {
-                                event.stopPropagation();
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                title="View transaction"
+                                aria-label="View transaction"
+                                onClick={(event) => {
+                                  event.stopPropagation();
 
-                                setSelectedTransactionId(
-                                  transaction.id,
-                                );
-                              }}
-                              className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-900"
-                            >
-                              <Eye
-                                size={17}
-                              />
-                            </button>
+                                  setSelectedTransactionId(
+                                    transaction.id,
+                                  );
+                                }}
+                                className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-900"
+                              >
+                                <Eye size={17} />
+                              </button>
+
+                              <button
+                                type="button"
+                                title="Edit transaction"
+                                aria-label="Edit transaction"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+
+                                  setEditTransactionId(
+                                    transaction.id,
+                                  );
+                                }}
+                                className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-900"
+                              >
+                                <Pencil size={17} />
+                              </button>
+
+                              <button
+                                type="button"
+                                title="Delete transaction"
+                                aria-label="Delete transaction"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+
+                                  setDeleteTransactionId(
+                                    transaction.id,
+                                  );
+                                }}
+                                className="rounded-lg p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                              >
+                                <Trash2 size={17} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );

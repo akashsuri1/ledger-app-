@@ -181,6 +181,23 @@ function requirePositiveInteger(
   return value;
 }
 
+function requireNonNegativeInteger(
+  value: unknown,
+  label: string,
+) {
+  if (
+    typeof value !== "number" ||
+    !Number.isSafeInteger(value) ||
+    value < 0
+  ) {
+    throw new ValidationFailure(
+      `${label} must be a non-negative integer.`,
+    );
+  }
+
+  return value;
+}
+
 function requireOneOf<T extends string | number>(
   value: unknown,
   allowed: readonly T[],
@@ -547,14 +564,30 @@ export function validateWorkspace(
       workspace.transactions,
       "transactions",
     ).map(parseTransaction);
-    const activeCompanyId = requirePositiveInteger(
+    const activeCompanyId = requireNonNegativeInteger(
       workspace.activeCompanyId,
       "activeCompanyId",
     );
 
     if (companies.length === 0) {
+      if (activeCompanyId !== 0) {
+        throw new ValidationFailure(
+          "An empty workspace must not reference an active company.",
+        );
+      }
+
+      if (
+        regions.length > 0 ||
+        parties.length > 0 ||
+        transactions.length > 0
+      ) {
+        throw new ValidationFailure(
+          "An empty workspace cannot contain company ledger data.",
+        );
+      }
+    } else if (activeCompanyId === 0) {
       throw new ValidationFailure(
-        "At least one company is required.",
+        "A workspace with companies must reference an active company.",
       );
     }
 
@@ -567,7 +600,10 @@ export function validateWorkspace(
       companies.map((company) => company.id),
     );
 
-    if (!companyIds.has(activeCompanyId)) {
+    if (
+      companies.length > 0 &&
+      !companyIds.has(activeCompanyId)
+    ) {
       throw new ValidationFailure(
         "activeCompanyId does not reference an existing company.",
       );
@@ -711,7 +747,7 @@ function createInitialCompany(
     id: 1,
     name:
       toDisplayName(settings.business.companyName) ||
-      "Your Company",
+      "My Company",
     address: settings.business.address.trim(),
     phone,
     gstin: settings.business.gstin.trim().toUpperCase(),
@@ -737,6 +773,36 @@ function createDefaultWorkspace(
       ...transaction,
       companyId: 1,
     })),
+    applicationSettings: {
+      appearance: { ...settings.appearance },
+    },
+  };
+}
+
+function createEmptyWorkspace(
+  settings: ReturnType<typeof loadSettings>["settings"],
+): LedgerWorkspace {
+  return {
+    companies: [],
+    activeCompanyId: 0,
+    regions: [],
+    parties: [],
+    transactions: [],
+    applicationSettings: {
+      appearance: { ...settings.appearance },
+    },
+  };
+}
+
+function createSettingsMigrationWorkspace(
+  settings: ReturnType<typeof loadSettings>["settings"],
+): LedgerWorkspace {
+  return {
+    companies: [createInitialCompany(settings)],
+    activeCompanyId: 1,
+    regions: [],
+    parties: [],
+    transactions: [],
     applicationSettings: {
       appearance: { ...settings.appearance },
     },
@@ -1033,11 +1099,35 @@ export function loadWorkspace(
   }
 
   if (legacyValue === null) {
+    if (legacySettings.error) {
+      return {
+        workspace: fallback,
+        error: legacySettings.error,
+        source: "defaults",
+        migrated: false,
+        shouldPersist: false,
+      };
+    }
+
+    if (legacySettings.source === "storage") {
+      return {
+        workspace: createSettingsMigrationWorkspace(
+          legacySettings.settings,
+        ),
+        error: null,
+        source: "legacy",
+        migrated: true,
+        shouldPersist: true,
+      };
+    }
+
     return {
-      workspace: fallback,
-      error: legacySettings.error,
+      workspace: createEmptyWorkspace(
+        legacySettings.settings,
+      ),
+      error: null,
       source: "defaults",
-      migrated: true,
+      migrated: false,
       shouldPersist: true,
     };
   }

@@ -5,12 +5,16 @@ export type TransactionDisplayLimit =
   | 100
   | "ALL";
 
+export type StatementTransactionLimit =
+  | number
+  | "ALL";
+
 export type ReportOrientation =
   | "portrait"
   | "landscape";
 
 export interface StatementPrintPreferences {
-  transactionLimit: TransactionDisplayLimit;
+  transactionLimit: StatementTransactionLimit;
   showRunningBalance: boolean;
   showNotes: boolean;
   showAttachment: boolean;

@@ -14,6 +14,7 @@ import {
   serializeLedgerFlowBackup,
 } from "../src/utils/backup";
 import { paginateItems } from "../src/utils/pagination";
+import { cascadeDeleteParty } from "../src/utils/ledgerMutations";
 import {
   calculateDateRangeReport,
   calculatePartyStatement,
@@ -101,6 +102,67 @@ function createLegacyStorage() {
   );
 
   return storage;
+}
+
+function verifyFirstTimeWorkspace() {
+  const storage = new MemoryStorage();
+  const firstLoad = loadWorkspace(storage);
+
+  assert.equal(firstLoad.source, "defaults");
+  assert.equal(firstLoad.migrated, false);
+  assert.equal(firstLoad.shouldPersist, true);
+  assert.equal(firstLoad.workspace.companies.length, 0);
+  assert.equal(firstLoad.workspace.activeCompanyId, 0);
+  assert.equal(firstLoad.workspace.regions.length, 0);
+  assert.equal(firstLoad.workspace.parties.length, 0);
+  assert.equal(firstLoad.workspace.transactions.length, 0);
+  assert.equal(validateWorkspace(firstLoad.workspace).ok, true);
+  assert.equal(saveWorkspace(firstLoad.workspace, storage).ok, true);
+
+  const refreshed = loadWorkspace(storage);
+  assert.equal(refreshed.source, "storage");
+  assert.equal(refreshed.shouldPersist, false);
+  assert.equal(refreshed.workspace.companies.length, 0);
+  assert.equal(refreshed.workspace.activeCompanyId, 0);
+}
+
+function verifySettingsOnlyMigration() {
+  const storage = new MemoryStorage();
+  const legacySettings = cloneValue(DEFAULT_SETTINGS);
+  legacySettings.business.companyName = "  Legacy Books  ";
+  legacySettings.business.address = "Old business address";
+  legacySettings.appearance.theme = "dark";
+
+  storage.setItem(
+    SETTINGS_STORAGE_KEY,
+    JSON.stringify({
+      format: "ledgerflow-settings",
+      version: 1,
+      savedAt: "2026-09-01T10:00:00.000Z",
+      settings: legacySettings,
+    }),
+  );
+
+  const migrated = loadWorkspace(storage);
+  assert.equal(migrated.source, "legacy");
+  assert.equal(migrated.migrated, true);
+  assert.equal(migrated.shouldPersist, true);
+  assert.equal(migrated.workspace.companies.length, 1);
+  assert.equal(migrated.workspace.companies[0].name, "Legacy Books");
+  assert.equal(migrated.workspace.companies[0].address, "Old business address");
+  assert.equal(migrated.workspace.activeCompanyId, 1);
+  assert.equal(migrated.workspace.regions.length, 0);
+  assert.equal(migrated.workspace.parties.length, 0);
+  assert.equal(migrated.workspace.transactions.length, 0);
+  assert.equal(migrated.workspace.applicationSettings.appearance.theme, "dark");
+
+  assert.equal(saveWorkspace(migrated.workspace, storage).ok, true);
+  const refreshed = loadWorkspace(storage);
+  assert.equal(refreshed.source, "storage");
+  assert.equal(refreshed.migrated, false);
+  assert.equal(refreshed.shouldPersist, false);
+  assert.equal(refreshed.workspace.companies.length, 1);
+  assert.equal(refreshed.workspace.companies[0].name, "Legacy Books");
 }
 
 function verifyLegacyMigration() {
@@ -192,6 +254,78 @@ function verifyCompanyIsolation(baseWorkspace: ReturnType<typeof verifyLegacyMig
   const invalidTimestamp = cloneWorkspace(workspace);
   invalidTimestamp.transactions[1].transactionDateTime = "not-a-date";
   assert.equal(validateWorkspace(invalidTimestamp).ok, false);
+}
+
+function verifyPartyCascadeDeletion(
+  baseWorkspace: ReturnType<typeof verifyLegacyMigration>,
+) {
+  const workspace = cloneWorkspace(baseWorkspace);
+  const companyAParty = workspace.parties[0];
+  const companyATransaction = workspace.transactions[0];
+
+  workspace.companies.push({
+    ...cloneValue(workspace.companies[0]),
+    id: 2,
+    name: "Cascade Company B",
+  });
+  workspace.regions.push({
+    id: 12,
+    companyId: 2,
+    name: "Delhi",
+  });
+  workspace.parties.push({
+    ...cloneValue(companyAParty),
+    id: companyAParty.id,
+    companyId: 2,
+    regionId: 12,
+    name: "Company B Party",
+  });
+  workspace.transactions.push({
+    ...cloneValue(companyATransaction),
+    id: 32,
+    companyId: 2,
+    partyId: companyAParty.id,
+  });
+
+  const deleted = cascadeDeleteParty(
+    workspace,
+    companyAParty.id,
+  );
+
+  assert.equal(
+    deleted.parties.some(
+      (party) =>
+        party.companyId === 1 &&
+        party.id === companyAParty.id,
+    ),
+    false,
+  );
+  assert.equal(
+    deleted.transactions.some(
+      (transaction) =>
+        transaction.companyId === 1 &&
+        transaction.partyId === companyAParty.id,
+    ),
+    false,
+  );
+  assert.equal(
+    deleted.parties.some(
+      (party) =>
+        party.companyId === 2 &&
+        party.id === companyAParty.id,
+    ),
+    true,
+  );
+  assert.equal(
+    deleted.transactions.some(
+      (transaction) => transaction.id === 32,
+    ),
+    true,
+  );
+  assert.throws(
+    () => cascadeDeleteParty(workspace, 999_999),
+    /active company/i,
+  );
 }
 
 function verifyCorruptCanonicalProtection() {
@@ -340,6 +474,17 @@ function verifyReportCalculations(
   assert.equal(statement.closingBalance, 60);
   assert.equal(statement.rows.length, 1);
 
+  const limitedStatement =
+    calculatePartyStatement({
+      partyId: party.id,
+      transactions,
+      lastN: 1,
+    });
+  assert.equal(limitedStatement.openingBalance, 100);
+  assert.equal(limitedStatement.totalDebit, 40);
+  assert.equal(limitedStatement.closingBalance, 60);
+  assert.equal(limitedStatement.rows.length, 1);
+
   const dateRange = calculateDateRangeReport({ transactions });
   assert.equal(dateRange.totalCredit, 100);
   assert.equal(dateRange.totalDebit, 40);
@@ -363,8 +508,11 @@ function verifyReportCalculations(
   assert.equal(invalidRange.issues[0]?.code, "INVALID_DATE_RANGE");
 }
 
+verifyFirstTimeWorkspace();
+verifySettingsOnlyMigration();
 const migratedWorkspace = verifyLegacyMigration();
 verifyCompanyIsolation(migratedWorkspace);
+verifyPartyCascadeDeletion(migratedWorkspace);
 verifyCorruptCanonicalProtection();
 const backupResult = verifyBackupRoundTrip(migratedWorkspace);
 verifyBackupHistory(backupResult);

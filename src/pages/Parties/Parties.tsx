@@ -219,13 +219,14 @@ export default function Parties() {
             deletePartyId,
         );
 
-  const partyHasTransactions =
-    deletePartyId !== null &&
-    transactions.some(
-      (transaction) =>
-        transaction.partyId ===
-        deletePartyId,
-    );
+  const partyTransactionCount =
+    deletePartyId === null
+      ? 0
+      : transactions.filter(
+          (transaction) =>
+            transaction.partyId ===
+            deletePartyId,
+        ).length;
 
   function handleDeleteParty() {
     if (
@@ -241,7 +242,9 @@ export default function Parties() {
       );
 
       toast.success(
-        "Party deleted successfully",
+        partyTransactionCount > 0
+          ? "Party and related transactions deleted successfully."
+          : "Party deleted successfully.",
       );
 
       setDeletePartyId(
@@ -665,11 +668,27 @@ export default function Parties() {
         }
         title="Delete Party?"
         description={
-          partyHasTransactions
-            ? `${partyToDelete?.name ?? "This party"} has transactions. LedgerFlow will not delete a party while transactions are attached to it.`
+          partyTransactionCount > 0
+            ? `${partyToDelete?.name ?? "This party"} has ${partyTransactionCount} ${
+                partyTransactionCount === 1
+                  ? "transaction"
+                  : "transactions"
+              }. Deleting this party will also permanently delete ${
+                partyTransactionCount === 1
+                  ? "the related transaction"
+                  : `all ${partyTransactionCount} related transactions`
+              }. This action cannot be undone.`
             : `Delete ${partyToDelete?.name ?? "this party"}? This action cannot be undone.`
         }
-        confirmLabel="Delete Party"
+        confirmLabel={
+          partyTransactionCount > 0
+            ? `Delete Party & ${partyTransactionCount} ${
+                partyTransactionCount === 1
+                  ? "Transaction"
+                  : "Transactions"
+              }`
+            : "Delete Party"
+        }
         tone="danger"
         onCancel={() =>
           setDeletePartyId(

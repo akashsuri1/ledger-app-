@@ -48,7 +48,6 @@ import type {
   ReportBusinessProfile,
   ReportOrientation,
   StatementPrintPreferences,
-  TransactionDisplayLimit,
 } from "../../types/reports";
 
 import type {
@@ -61,13 +60,10 @@ type ReportType =
   | "REGION"
   | "DATE_RANGE";
 
-const TRANSACTION_LIMITS: readonly TransactionDisplayLimit[] = [
-  10,
-  25,
-  50,
-  100,
-  "ALL",
-];
+import {
+  isPresetTransactionLimit,
+  parseTransactionLimit,
+} from "../../utils/statementLimits";
 
 function getBusinessProfile(
   business: BusinessSettings,
@@ -154,30 +150,6 @@ function parsePositiveId(
     : undefined;
 }
 
-function parseTransactionLimit(
-  value: string | null,
-): TransactionDisplayLimit | undefined {
-  if (value === null) {
-    return undefined;
-  }
-
-  const normalized =
-    value.trim().toUpperCase();
-
-  if (normalized === "ALL") {
-    return "ALL";
-  }
-
-  const numericValue =
-    Number(normalized);
-
-  return TRANSACTION_LIMITS.includes(
-    numericValue as TransactionDisplayLimit,
-  )
-    ? numericValue as TransactionDisplayLimit
-    : undefined;
-}
-
 function PreviewMessage({
   title,
   description,
@@ -249,6 +221,11 @@ export default function Reports() {
 
   const [toDate, setToDate] =
     useState("");
+
+  const [
+    customLimitDraft,
+    setCustomLimitDraft,
+  ] = useState<{ query: string | null; value: string } | null>(null);
 
   const [
     statementPreferences,
@@ -403,7 +380,7 @@ export default function Reports() {
   const limitQueryError =
     limitQuery !== null &&
     parsedLimit === undefined
-      ? "The transaction-count query parameter is invalid. Choose 10, 25, 50, 100, or All."
+      ? "The transaction-count query parameter is invalid. Enter a whole number from 1 to 10,000, or choose All."
       : undefined;
 
   const effectivePreferences: StatementPrintPreferences = {
@@ -412,6 +389,37 @@ export default function Reports() {
       parsedLimit ??
       settings.print.defaultTransactionLimit,
   };
+
+  const usesCustomTransactionLimit =
+    typeof effectivePreferences.transactionLimit ===
+      "number" &&
+    (searchParams.get("limitMode") === "custom" ||
+      !isPresetTransactionLimit(effectivePreferences.transactionLimit));
+
+  // Keep incomplete input local while keeping valid limits in shareable URLs.
+  // A different URL must not reuse a draft from the previous statement.
+  if (customLimitDraft && customLimitDraft.query !== limitQuery) {
+    setCustomLimitDraft(null);
+  }
+
+  const customTransactionLimit =
+    customLimitDraft?.query === limitQuery
+      ? customLimitDraft.value
+      : typeof parsedLimit === "number"
+        ? parsedLimit.toString()
+        : "20";
+
+  const parsedCustomTransactionLimit =
+    parseTransactionLimit(
+      customTransactionLimit,
+    );
+
+  const customTransactionLimitError =
+    usesCustomTransactionLimit &&
+    typeof parsedCustomTransactionLimit !==
+      "number"
+      ? "Enter a whole number of transactions from 1 to 10,000."
+      : undefined;
 
   const regionPreferences: StatementPrintPreferences = {
     ...savedStatementPreferences,
@@ -495,11 +503,6 @@ export default function Reports() {
               partyId:
                 selectedParty.id,
               transactions,
-              from:
-                fromDate ||
-                undefined,
-              to:
-                toDate || undefined,
               lastN:
                 effectivePreferences.transactionLimit ===
                 "ALL"
@@ -510,8 +513,6 @@ export default function Reports() {
       [
         selectedParty,
         transactions,
-        fromDate,
-        toDate,
         effectivePreferences.transactionLimit,
       ],
     );
@@ -571,13 +572,16 @@ export default function Reports() {
       : undefined;
 
   const validationMessages = [
-    ...dateValidation.issues.map(
-      (issue) => issue.message,
-    ),
+    ...(reportType === "PARTY"
+      ? []
+      : dateValidation.issues.map(
+          (issue) => issue.message,
+        )),
     ...(reportType === "PARTY"
       ? [
           partyQueryError,
           limitQueryError,
+          customTransactionLimitError,
         ]
       : reportType === "REGION"
         ? [regionQueryError]
@@ -645,6 +649,7 @@ export default function Reports() {
       party: undefined,
       region: undefined,
       limit: undefined,
+      limitMode: undefined,
     });
   }
 
@@ -655,12 +660,40 @@ export default function Reports() {
       preferences,
     );
 
+  }
+
+  function handleTransactionLimitChange(value: string) {
+    if (value === "CUSTOM") {
+      handleCustomTransactionLimitChange(
+        typeof parseTransactionLimit(customTransactionLimit) === "number"
+          ? customTransactionLimit
+          : "20",
+      );
+      return;
+    }
+
+    setCustomLimitDraft(null);
+    updateQuery({ limit: value.toLowerCase(), limitMode: undefined });
+  }
+
+  function handleCustomTransactionLimitChange(
+    value: string,
+  ) {
+    const parsed =
+      parseTransactionLimit(value);
+
+    setCustomLimitDraft({
+      query: typeof parsed === "number" ? parsed.toString() : limitQuery,
+      value,
+    });
+
+    if (typeof parsed !== "number") {
+      return;
+    }
+
     updateQuery({
-      limit:
-        preferences.transactionLimit ===
-        "ALL"
-          ? "all"
-          : preferences.transactionLimit.toString(),
+      limit: parsed.toString(),
+      limitMode: "custom",
     });
   }
 
@@ -669,6 +702,7 @@ export default function Reports() {
     setToDate("");
 
     if (reportType === "PARTY") {
+      setCustomLimitDraft(null);
       setStatementPreferences(
         getStatementPreferences(
           settings.print,
@@ -676,6 +710,7 @@ export default function Reports() {
       );
       updateQuery({
         limit: undefined,
+        limitMode: undefined,
         ...(partyQueryError
           ? {
               party: undefined,
@@ -840,11 +875,14 @@ export default function Reports() {
               selectedParty?.id.toString() ??
               ""
             }
-            fromDate={fromDate}
-            toDate={toDate}
             preferences={
               effectivePreferences
             }
+            customTransactionLimit={
+              customTransactionLimit
+            }
+            usesCustomTransactionLimit={usesCustomTransactionLimit}
+            onTransactionLimitChange={handleTransactionLimitChange}
             partySelectionInvalid={
               Boolean(
                 partyQueryError,
@@ -852,11 +890,9 @@ export default function Reports() {
             }
             transactionLimitInvalid={
               Boolean(
-                limitQueryError,
+                limitQueryError ||
+                  customTransactionLimitError,
               )
-            }
-            dateRangeInvalid={
-              !dateValidation.isValid
             }
             validationErrorId="report-validation-errors"
             onPartyChange={(value) =>
@@ -866,11 +902,8 @@ export default function Reports() {
                   value || undefined,
               })
             }
-            onFromDateChange={
-              setFromDate
-            }
-            onToDateChange={
-              setToDate
+            onCustomTransactionLimitChange={
+              handleCustomTransactionLimitChange
             }
             onPreferencesChange={
               handlePreferenceChange
@@ -1014,10 +1047,10 @@ export default function Reports() {
               title="Select a party"
               description="Choose a party above to generate an accounting-correct statement and print preview."
             />
-          ) : limitQueryError ? (
+          ) : limitQueryError || customTransactionLimitError ? (
             <PreviewMessage
               title="Invalid transaction limit"
-              description={limitQueryError}
+              description={limitQueryError || customTransactionLimitError!}
               tone="warning"
             />
           ) : !statement?.isValid ? (

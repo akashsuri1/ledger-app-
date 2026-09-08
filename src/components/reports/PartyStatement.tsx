@@ -14,7 +14,6 @@ import type {
 
 import {
   formatBalanceLabel,
-  formatReportDateRange,
   formatReportTransactionDate,
 } from "../../utils/reportFormatting";
 
@@ -133,10 +132,7 @@ export default function PartyStatement({
               </p>
 
               <p className="mt-2 text-sm font-semibold text-slate-900">
-                {formatReportDateRange(
-                  statement.dateRange.from,
-                  statement.dateRange.to,
-                )}
+                Complete ledger history
               </p>
 
               <p className="mt-1 text-xs text-slate-500">
@@ -294,7 +290,7 @@ export default function PartyStatement({
                     colSpan={columnCount}
                     className="border-b border-slate-200 px-3 py-10 text-center text-sm text-slate-500"
                   >
-                    No transactions match the selected statement range.
+                    No transactions have been recorded for this party.
                   </td>
                 </tr>
               ) : (
@@ -401,7 +397,7 @@ export default function PartyStatement({
 
             <div className="mt-3 flex items-center justify-between gap-8 rounded-lg border-2 border-slate-900 bg-slate-50 px-4 py-3">
               <dt className="font-bold text-slate-950">
-                Closing Balance
+                Overall Balance
               </dt>
               <dd
                 className={`text-base font-bold ${balanceTone(
@@ -413,6 +409,9 @@ export default function PartyStatement({
                 )}
               </dd>
             </div>
+            <p className="text-right text-[10px] leading-4 text-slate-500">
+              Includes every recorded transaction, even when only the latest rows are printed.
+            </p>
           </dl>
         </section>
 

@@ -13,23 +13,25 @@ import type {
   DateRangePrintPreferences,
   ReportOrientation,
   StatementPrintPreferences,
-  TransactionDisplayLimit,
 } from "../../types/reports";
+import {
+  MAX_CUSTOM_TRANSACTION_LIMIT,
+  PRESET_TRANSACTION_LIMITS,
+} from "../../utils/statementLimits";
 
 interface PartyReportFiltersProps {
   parties: readonly Party[];
   regions: readonly Region[];
   selectedPartyId: string;
-  fromDate: string;
-  toDate: string;
   preferences: StatementPrintPreferences;
+  customTransactionLimit: string;
+  usesCustomTransactionLimit: boolean;
   partySelectionInvalid?: boolean;
   transactionLimitInvalid?: boolean;
-  dateRangeInvalid?: boolean;
   validationErrorId?: string;
   onPartyChange: (partyId: string) => void;
-  onFromDateChange: (value: string) => void;
-  onToDateChange: (value: string) => void;
+  onCustomTransactionLimitChange: (value: string) => void;
+  onTransactionLimitChange: (value: string) => void;
   onPreferencesChange: (
     preferences: StatementPrintPreferences,
   ) => void;
@@ -126,16 +128,15 @@ export function PartyReportFilters({
   parties,
   regions,
   selectedPartyId,
-  fromDate,
-  toDate,
   preferences,
+  customTransactionLimit,
+  usesCustomTransactionLimit,
   partySelectionInvalid = false,
   transactionLimitInvalid = false,
-  dateRangeInvalid = false,
   validationErrorId,
   onPartyChange,
-  onFromDateChange,
-  onToDateChange,
+  onCustomTransactionLimitChange,
+  onTransactionLimitChange,
   onPreferencesChange,
 }: PartyReportFiltersProps) {
   function updatePreferences(
@@ -147,16 +148,21 @@ export function PartyReportFilters({
     });
   }
 
+  const transactionLimitSelectValue =
+    usesCustomTransactionLimit
+      ? "CUSTOM"
+      : preferences.transactionLimit.toString();
+
   return (
     <div className="space-y-5">
       <div>
         <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900">
           <ListFilter size={16} />
-          Statement range
+          Party statement
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <label className="block xl:col-span-2">
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="block">
             <span className="mb-1.5 block text-xs font-medium text-slate-500">
               Party
             </span>
@@ -197,57 +203,9 @@ export function PartyReportFilters({
             </select>
           </label>
 
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-slate-500">
-              From date
-            </span>
-
-            <input
-              type="date"
-              value={fromDate}
-              aria-invalid={
-                dateRangeInvalid ||
-                undefined
-              }
-              aria-describedby={
-                dateRangeInvalid
-                  ? validationErrorId
-                  : undefined
-              }
-              onChange={(event) =>
-                onFromDateChange(
-                  event.target.value,
-                )
-              }
-              className={fieldClassName}
-            />
-          </label>
-
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-slate-500">
-              To date
-            </span>
-
-            <input
-              type="date"
-              value={toDate}
-              aria-invalid={
-                dateRangeInvalid ||
-                undefined
-              }
-              aria-describedby={
-                dateRangeInvalid
-                  ? validationErrorId
-                  : undefined
-              }
-              onChange={(event) =>
-                onToDateChange(
-                  event.target.value,
-                )
-              }
-              className={fieldClassName}
-            />
-          </label>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
+            The statement always uses the party's complete ledger history. Its overall balance is never limited by the number of rows printed.
+          </div>
         </div>
       </div>
 
@@ -264,7 +222,7 @@ export function PartyReportFilters({
             </span>
 
             <select
-              value={preferences.transactionLimit}
+              value={transactionLimitSelectValue}
               aria-invalid={
                 transactionLimitInvalid ||
                 undefined
@@ -274,28 +232,49 @@ export function PartyReportFilters({
                   ? validationErrorId
                   : undefined
               }
-              onChange={(event) => {
-                const value =
-                  event.target.value;
-
-                updatePreferences({
-                  transactionLimit:
-                    value === "ALL"
-                      ? "ALL"
-                      : Number(
-                          value,
-                        ) as TransactionDisplayLimit,
-                });
-              }}
+              onChange={(event) => onTransactionLimitChange(event.target.value)}
               className={fieldClassName}
             >
-              <option value={10}>Last 10</option>
-              <option value={25}>Last 25</option>
-              <option value={50}>Last 50</option>
-              <option value={100}>Last 100</option>
+              {PRESET_TRANSACTION_LIMITS.map((limit) => (
+                <option key={limit} value={limit}>Last {limit}</option>
+              ))}
               <option value="ALL">All transactions</option>
+              <option value="CUSTOM">Custom number</option>
             </select>
           </label>
+
+          {transactionLimitSelectValue === "CUSTOM" && (
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-medium text-slate-500">
+                Number of transactions
+              </span>
+
+              <input
+                type="number"
+                min={1}
+                max={MAX_CUSTOM_TRANSACTION_LIMIT}
+                step={1}
+                inputMode="numeric"
+                value={customTransactionLimit}
+                aria-invalid={
+                  transactionLimitInvalid ||
+                  undefined
+                }
+                aria-describedby={
+                  transactionLimitInvalid
+                    ? validationErrorId
+                    : undefined
+                }
+                onChange={(event) =>
+                  onCustomTransactionLimitChange(
+                    event.target.value,
+                  )
+                }
+                placeholder="Enter 1 to 10,000"
+                className={fieldClassName}
+              />
+            </label>
+          )}
 
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium text-slate-500">

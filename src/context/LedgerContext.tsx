@@ -35,6 +35,8 @@ import {
 } from "../utils/workspaceStorage";
 import { normalizeForComparison, toDisplayName } from "../utils/text";
 import { roundCurrency } from "../utils/currency";
+import { cascadeDeleteParty } from "../utils/ledgerMutations";
+import FirstCompanySetup from "../components/companies/FirstCompanySetup";
 
 interface ProviderState {
   workspace: LedgerWorkspace;
@@ -402,29 +404,12 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
 
   function deleteParty(partyId: number) {
     const current = getCurrent();
-    const companyId = current.activeCompanyId;
-    if (
-      !current.parties.some(
-        (party) => party.id === partyId && party.companyId === companyId,
-      )
-    ) {
-      throw new Error("Party not found in the active company.");
-    }
-    if (
-      current.transactions.some(
-        (transaction) =>
-          transaction.partyId === partyId &&
-          transaction.companyId === companyId,
-      )
-    ) {
-      throw new Error("This party has transactions and cannot be deleted yet.");
-    }
-    commitOrThrow({
-      ...current,
-      parties: current.parties.filter(
-        (party) => party.id !== partyId || party.companyId !== companyId,
+    commitOrThrow(
+      cascadeDeleteParty(
+        current,
+        partyId,
       ),
-    });
+    );
   }
 
   function addRegion(data: NewRegion) {
@@ -822,6 +807,17 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
     (company) => company.id === activeCompanyId,
   );
   if (!activeCompany) {
+    if (
+      workspace.companies.length === 0 &&
+      activeCompanyId === 0
+    ) {
+      return (
+        <FirstCompanySetup
+          onCreate={createCompany}
+        />
+      );
+    }
+
     throw new Error("LedgerFlow workspace has no active company.");
   }
 

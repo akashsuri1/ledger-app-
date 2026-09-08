@@ -255,7 +255,13 @@ export default function PartyDetails() {
     );
 
     toast.success(
-      "Party deleted successfully",
+      partyTransactions.length > 0
+        ? "Party and related transactions deleted successfully."
+        : "Party deleted successfully.",
+    );
+
+    setDeletePartyOpen(
+      false,
     );
 
     navigate(
@@ -980,10 +986,26 @@ export default function PartyDetails() {
         description={
           partyTransactions.length >
           0
-            ? `${party.name} has ${partyTransactions.length} transaction(s). Delete those transactions before deleting this party.`
+            ? `${party.name} has ${partyTransactions.length} ${
+                partyTransactions.length === 1
+                  ? "transaction"
+                  : "transactions"
+              }. Deleting this party will also permanently delete ${
+                partyTransactions.length === 1
+                  ? "the related transaction"
+                  : `all ${partyTransactions.length} related transactions`
+              }. This action cannot be undone.`
             : `Delete ${party.name}? This action cannot be undone.`
         }
-        confirmLabel="Delete Party"
+        confirmLabel={
+          partyTransactions.length > 0
+            ? `Delete Party & ${partyTransactions.length} ${
+                partyTransactions.length === 1
+                  ? "Transaction"
+                  : "Transactions"
+              }`
+            : "Delete Party"
+        }
         tone="danger"
         onCancel={() =>
           setDeletePartyOpen(
