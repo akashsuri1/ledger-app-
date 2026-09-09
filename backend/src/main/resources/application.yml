@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: ledgerflow-backend
+  autoconfigure:
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    community-db-support-enabled: true
+    validate-migration-naming: true
+  sql:
+    init:
+      mode: never
+
+ledgerflow:
+  database:
+    path: ${LEDGERFLOW_DATABASE_PATH:${user.home}/.ledgerflow/data/ledgerflow.db}
+  security:
+    session-cookie-name: LF_SESSION
+    session-ttl: 7d
+    reset-token-ttl: 30m
+    secure-cookies: ${LEDGERFLOW_SECURE_COOKIES:false}
+    same-site: Lax
+    allowed-origins: ${LEDGERFLOW_ALLOWED_ORIGINS:http://localhost:5173}
+    auth-rate-limit: 30
+    auth-rate-window: 1m
