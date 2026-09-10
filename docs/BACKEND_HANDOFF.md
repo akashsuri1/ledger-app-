@@ -7,9 +7,10 @@ and Tailwind CSS. The frontend still persists its workspace in browser
 LocalStorage until API integration. Backend Milestones 1 and 2 are complete:
 SQLite/Flyway persistence, authentication, password recovery, memberships,
 company authorization, bootstrap, and user preferences now exist. Milestone 3
-also provides Company, Region, Party, and Transaction CRUD with server-side
-search, filters, pagination, roles, and company isolation. Dashboard/report
-APIs, object storage, and frontend API integration have not started.
+provides Company, Region, Party, and Transaction CRUD with server-side search,
+filters, pagination, roles, and company isolation. Milestone 4 provides Dashboard,
+Company Settings, Party Statement, Date Range, and Region Report APIs. Object
+storage and frontend API integration have not started.
 
 The frontend already supports:
 
@@ -372,7 +373,7 @@ GET /api/companies/:companyId/dashboard?recentLimit=5
 GET /api/companies/:companyId/reports/party-statement
     ?partyId=&from=&to=&limit=25
 GET /api/companies/:companyId/reports/date-range
-    ?partyIds=1,2&from=&to=
+    ?partyId=&regionId=&from=&to=
 GET /api/companies/:companyId/reports/regions
     ?regionId=&from=&to=
 ```

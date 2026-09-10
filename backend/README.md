@@ -1,9 +1,8 @@
 # LedgerFlow backend
 
 This directory contains the Spring Boot API and SQLite persistence service.
-Milestones 1 and 2 provide the schema, cookie authentication, password recovery,
-company membership authorization, bootstrap, and user preferences. Ledger CRUD
-is intentionally deferred to Milestone 3.
+Milestones 1 through 4 provide the schema, authentication, company authorization,
+ledger CRUD, dashboard summaries, company settings, and financial reports.
 
 ## Requirements
 
@@ -100,6 +99,32 @@ Owners and admins may update company details, and only owners may delete an
 empty company. Owners, admins, and accountants may mutate Regions, Parties, and
 Transactions. Viewers have read-only access. All resource lookups and filters
 are scoped to an active company membership.
+
+Milestone 4 adds dashboard, settings, and reports:
+
+```text
+GET                  /api/companies/{companyId}/dashboard?recentLimit=5
+GET|PATCH            /api/companies/{companyId}/settings
+GET                  /api/companies/{companyId}/reports/party-statement
+                     ?partyId=&from=&to=&limit=
+GET                  /api/companies/{companyId}/reports/date-range
+                     ?partyId=&regionId=&from=&to=
+GET                  /api/companies/{companyId}/reports/regions
+                     ?regionId=&from=&to=
+```
+
+Dashboard `recentLimit` defaults to 5 and accepts 1 through 25. Its chart contains
+the current calendar month and preceding five months, with missing months filled
+with zero credit and debit activity. Statement limits accept `ALL` or an integer
+from 1 through 10,000; when omitted, the Company's default setting is used.
+Report date boundaries are inclusive. Statement rows are selected newest-first
+for Last-N and then returned in `transactionDate ASC, id ASC` display order.
+Opening balances include history before the first displayed row. Date Range
+reports reject results over 10,000 Transactions and require narrower filters.
+
+All active roles may read dashboard, settings, and reports. Owners, admins, and
+accountants may update Company Settings; viewers cannot. Appearance remains in
+`/api/me/preferences` and is independent of Company Settings.
 
 `PasswordResetNotifier` is the delivery boundary. The default implementation
 records only that a request occurred and does not expose the token. Replace it
