@@ -6,8 +6,10 @@ LedgerFlow has a complete frontend prototype built with React, TypeScript, Vite,
 and Tailwind CSS. The frontend still persists its workspace in browser
 LocalStorage until API integration. Backend Milestones 1 and 2 are complete:
 SQLite/Flyway persistence, authentication, password recovery, memberships,
-company authorization, bootstrap, and user preferences now exist. Ledger CRUD,
-object storage, and frontend API integration have not started.
+company authorization, bootstrap, and user preferences now exist. Milestone 3
+also provides Company, Region, Party, and Transaction CRUD with server-side
+search, filters, pagination, roles, and company isolation. Dashboard/report
+APIs, object storage, and frontend API integration have not started.
 
 The frontend already supports:
 

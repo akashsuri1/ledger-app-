@@ -10,6 +10,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -33,6 +34,12 @@ public class GlobalExceptionHandler {
     ResponseEntity<ApiErrorEnvelope> malformed() {
         return ResponseEntity.badRequest()
                 .body(ApiErrorEnvelope.of("MALFORMED_REQUEST", "The request body is malformed."));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    ResponseEntity<ApiErrorEnvelope> malformedParameter() {
+        return ResponseEntity.badRequest()
+                .body(ApiErrorEnvelope.of("MALFORMED_REQUEST", "A path or query parameter is malformed."));
     }
 
     @ExceptionHandler(Exception.class)

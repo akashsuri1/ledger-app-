@@ -78,6 +78,29 @@ GET  /api/me/bootstrap
 PATCH /api/me/preferences
 ```
 
+Milestone 3 adds the core ledger resources:
+
+```text
+GET|POST              /api/companies
+GET|PATCH|DELETE      /api/companies/{companyId}
+GET|POST              /api/companies/{companyId}/regions
+PATCH|DELETE          /api/companies/{companyId}/regions/{regionId}
+GET|POST              /api/companies/{companyId}/parties
+GET|PATCH|DELETE      /api/companies/{companyId}/parties/{partyId}
+GET|POST              /api/companies/{companyId}/transactions
+GET|PATCH|DELETE      /api/companies/{companyId}/transactions/{transactionId}
+```
+
+Party lists accept `search`, `regionId`, `page`, and `pageSize`. Transaction
+lists also accept `partyId`, `type`, `from`, and `to`. Page sizes range from 1
+through 100. Transaction dates are `YYYY-MM-DD`; amounts are positive integer
+rupees. Every mutation requires the CSRF header described above.
+
+Owners and admins may update company details, and only owners may delete an
+empty company. Owners, admins, and accountants may mutate Regions, Parties, and
+Transactions. Viewers have read-only access. All resource lookups and filters
+are scoped to an active company membership.
+
 `PasswordResetNotifier` is the delivery boundary. The default implementation
 records only that a request occurred and does not expose the token. Replace it
 with an email provider implementation when deployment infrastructure is chosen.
