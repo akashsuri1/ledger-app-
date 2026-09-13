@@ -1,8 +1,9 @@
 # LedgerFlow backend
 
 This directory contains the Spring Boot API and SQLite persistence service.
-Milestones 1 through 4 provide the schema, authentication, company authorization,
-ledger CRUD, dashboard summaries, company settings, and financial reports.
+Milestones 1 through 5 provide the schema, authentication, company authorization,
+ledger CRUD, dashboard summaries, company settings, financial reports, and private
+Transaction attachment storage.
 
 ## Requirements
 
@@ -26,6 +27,19 @@ $env:LEDGERFLOW_DATABASE_PATH = "C:\path\outside-OneDrive\ledgerflow.db"
 SQLite foreign keys are enabled for every connection. The database is the live
 application store; copying it into a synchronized directory is not the backup
 strategy.
+
+## Attachment storage
+
+Attachments are stored beneath `${user.home}/.ledgerflow/data/attachments` by
+default. Override the application data root with `LEDGERFLOW_DATA_DIR`. The
+database stores only relative generated keys; files are never served as public
+static resources.
+
+The default limit is 10 MB and can be changed with
+`LEDGERFLOW_ATTACHMENT_MAX_SIZE` (for example, `25MB`). Accepted formats are PDF,
+PNG, JPG, and JPEG. LedgerFlow verifies the extension, supplied MIME type, and
+file signature. One attachment is allowed per Transaction; another upload
+replaces it.
 
 ## Commands
 
@@ -125,6 +139,21 @@ reports reject results over 10,000 Transactions and require narrower filters.
 All active roles may read dashboard, settings, and reports. Owners, admins, and
 accountants may update Company Settings; viewers cannot. Appearance remains in
 `/api/me/preferences` and is independent of Company Settings.
+
+Milestone 5 adds Transaction attachments:
+
+```text
+POST   /api/companies/{companyId}/transactions/{transactionId}/attachment
+GET    /api/companies/{companyId}/transactions/{transactionId}/attachment
+DELETE /api/companies/{companyId}/transactions/{transactionId}/attachment
+```
+
+`POST` is multipart form data with a `file` part. OWNER, ADMIN, and ACCOUNTANT
+may upload, replace, download, and delete. VIEWER may download only. Transaction,
+dashboard, and report DTOs include nullable `attachment` metadata containing
+`id`, `originalName`, `mimeType`, and `byteSize`; storage keys are private.
+Deleting a Transaction or Party deletes attachment metadata in the same database
+transaction and removes committed files after the transaction succeeds.
 
 `PasswordResetNotifier` is the delivery boundary. The default implementation
 records only that a request occurred and does not expose the token. Replace it

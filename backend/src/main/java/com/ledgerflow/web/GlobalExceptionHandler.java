@@ -12,6 +12,8 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -48,6 +50,19 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest()
                 .body(ApiErrorEnvelope.of("MALFORMED_REQUEST",
                         "Required query parameter " + exception.getParameterName() + " is missing."));
+    }
+
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    ResponseEntity<ApiErrorEnvelope> missingPart() {
+        return ResponseEntity.badRequest()
+                .body(ApiErrorEnvelope.of("MALFORMED_REQUEST", "The required attachment file is missing."));
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    ResponseEntity<ApiErrorEnvelope> uploadTooLarge() {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(ApiErrorEnvelope.of("ATTACHMENT_TOO_LARGE",
+                        "The attachment exceeds the configured size limit."));
     }
 
     @ExceptionHandler(Exception.class)

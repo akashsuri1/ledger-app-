@@ -9,8 +9,9 @@ SQLite/Flyway persistence, authentication, password recovery, memberships,
 company authorization, bootstrap, and user preferences now exist. Milestone 3
 provides Company, Region, Party, and Transaction CRUD with server-side search,
 filters, pagination, roles, and company isolation. Milestone 4 provides Dashboard,
-Company Settings, Party Statement, Date Range, and Region Report APIs. Object
-storage and frontend API integration have not started.
+Company Settings, Party Statement, Date Range, and Region Report APIs. Milestone 5
+provides private filesystem-backed Transaction attachment upload, replacement,
+download, deletion, and cascade cleanup. Frontend API integration has not started.
 
 The frontend already supports:
 
@@ -21,7 +22,7 @@ The frontend already supports:
 - party statements, date-range reports, and region reports;
 - company, statement, print, and application appearance settings;
 - JSON backup, validation, and restore;
-- transaction attachment selection (currently only the file name is persisted);
+- transaction attachment selection (still LocalStorage-only until frontend API integration);
 - guarded destructive actions and empty-company deletion.
 
 Keep the public operations exposed by `LedgerContext` stable while replacing its
@@ -218,9 +219,10 @@ region, party, and transaction all belong to the same company.
 - `transactionDate` is a valid `YYYY-MM-DD` calendar date. No time is accepted or
   displayed.
 - Notes are optional.
-- Current upload inputs accept PDF, JPG/JPEG, and PNG. The browser prototype only
-  stores `attachmentName`; the backend must add actual upload, download, access
-  control, size validation, and object deletion.
+- Current upload inputs accept PDF, JPG/JPEG, and PNG. The backend supports one
+  verified attachment per Transaction with authorized upload, replacement,
+  download, deletion, and Party/Transaction cascade cleanup. The browser prototype
+  still stores `attachmentName` until the frontend API integration milestone.
 
 ## 5. Accounting and report semantics
 
@@ -413,7 +415,7 @@ successful import.
    preferences may be cached locally for immediate startup.
 6. Keep `activeCompanyId` in context and include it in every ledger query key.
 7. Clear old-company cached data immediately when switching companies.
-8. Wire real attachment uploads and authorized downloads.
+8. Wire the existing attachment inputs to the Milestone 5 multipart and download APIs.
 9. Add the local-data import flow before removing legacy LocalStorage support.
 10. Display membership role on `/select-company` once the bootstrap API supplies it.
 

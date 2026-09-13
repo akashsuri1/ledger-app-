@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 
+import com.ledgerflow.attachment.AttachmentView;
 import com.ledgerflow.common.InputValidator;
 import com.ledgerflow.company.CompanyRepository;
 import com.ledgerflow.financial.FinancialCalculationService;
@@ -50,14 +51,15 @@ public class ReportService {
     public record PartyProfile(long id, long regionId, String regionName, String name, String phone,
                                String address, String gstin, String notes) {}
     public record StatementRow(long id, String transactionDate, String description, String notes,
-                               String type, Long credit, Long debit, long signedAmount, long runningBalance) {}
+                               String type, Long credit, Long debit, long signedAmount, long runningBalance,
+                               AttachmentView attachment) {}
     public record PartyStatement(CompanyProfile company, PartyProfile party, String from, String to,
                                  Object limit, long eligibleTransactionCount, long displayedTransactionCount,
                                  long openingBalance, long totalCredit, long totalDebit, long netMovement,
                                  long closingBalance, List<StatementRow> transactions) {}
     public record ReportTransaction(long id, long partyId, String partyName, long regionId, String regionName,
                                     String transactionDate, String description, String notes, String type,
-                                    Long credit, Long debit, long signedAmount) {}
+                                    Long credit, Long debit, long signedAmount, AttachmentView attachment) {}
     public record DateRangeReport(CompanyProfile company, String from, String to, Long partyId, Long regionId,
                                   long transactionCount, long openingBalance, long totalCredit, long totalDebit,
                                   long netMovement, long closingBalance, List<ReportTransaction> transactions) {}
@@ -106,7 +108,7 @@ public class ReportService {
             else debit = Math.addExact(debit, row.amount());
             statementRows.add(new StatementRow(row.id(), row.transactionDate().toString(), row.description(),
                     row.notes(), row.type(), "CREDIT".equals(row.type()) ? row.amount() : null,
-                    "DEBIT".equals(row.type()) ? row.amount() : null, signed, running));
+                    "DEBIT".equals(row.type()) ? row.amount() : null, signed, running, row.attachment()));
         }
         long movement = Math.subtractExact(credit, debit);
         long closing = Math.addExact(opening, movement);
@@ -189,7 +191,7 @@ public class ReportService {
         return new ReportTransaction(row.id(), row.partyId(), row.partyName(), row.regionId(), row.regionName(),
                 row.transactionDate().toString(), row.description(), row.notes(), row.type(),
                 "CREDIT".equals(row.type()) ? row.amount() : null,
-                "DEBIT".equals(row.type()) ? row.amount() : null, signed);
+                "DEBIT".equals(row.type()) ? row.amount() : null, signed, row.attachment());
     }
 
     private CompanyProfile company(long companyId) {

@@ -2,6 +2,9 @@ package com.ledgerflow.transaction;
 
 import java.time.LocalDate;
 
+import com.ledgerflow.attachment.AttachmentCleanupService;
+import com.ledgerflow.attachment.AttachmentRepository;
+import com.ledgerflow.attachment.AttachmentView;
 import com.ledgerflow.auth.SecurityAuditRepository;
 import com.ledgerflow.common.InputValidator;
 import com.ledgerflow.membership.CompanyAccessService;
@@ -26,22 +29,27 @@ public class TransactionService {
     private final CompanyAccessService access;
     private final InputValidator validator;
     private final SecurityAuditRepository audit;
+    private final AttachmentRepository attachments;
+    private final AttachmentCleanupService attachmentCleanup;
 
     public TransactionService(TransactionRepository transactions, PartyRepository parties,
                               RegionRepository regions, CompanyAccessService access,
-                              InputValidator validator, SecurityAuditRepository audit) {
+                              InputValidator validator, SecurityAuditRepository audit,
+                              AttachmentRepository attachments, AttachmentCleanupService attachmentCleanup) {
         this.transactions = transactions;
         this.parties = parties;
         this.regions = regions;
         this.access = access;
         this.validator = validator;
         this.audit = audit;
+        this.attachments = attachments;
+        this.attachmentCleanup = attachmentCleanup;
     }
 
     public record TransactionView(long id, long companyId, long partyId, String partyName,
                                   long regionId, String regionName, String type, long amount,
                                   String transactionDate, String description, String notes,
-                                  String createdAt, String updatedAt) {}
+                                  String createdAt, String updatedAt, AttachmentView attachment) {}
     public record TransactionPage(java.util.List<TransactionView> items, long total) {}
 
     public TransactionPage list(AuthenticatedUser user, long companyId, String search,
@@ -97,7 +105,8 @@ public class TransactionService {
         String notes = validator.optionalText(body, "notes", existing.notes());
         transactions.update(new TransactionRepository.LedgerTransaction(
                 transactionId, companyId, partyId, existing.partyName(), existing.regionId(), existing.regionName(),
-                type, amount, date, description, notes, existing.createdAt(), existing.updatedAt()));
+                type, amount, date, description, notes, existing.createdAt(), existing.updatedAt(),
+                existing.attachment()));
         return view(require(companyId, transactionId));
     }
 
@@ -105,7 +114,10 @@ public class TransactionService {
     public void delete(AuthenticatedUser user, long companyId, long transactionId) {
         access.requireRole(user.userId(), companyId, WRITERS);
         require(companyId, transactionId);
-        audit.record(user.userId(), companyId, "TRANSACTION_DELETED", "TRANSACTION", transactionId, "{}");
+        var attachment = attachments.find(companyId, transactionId).stream().toList();
+        attachmentCleanup.afterCommit(attachment);
+        audit.record(user.userId(), companyId, "TRANSACTION_DELETED", "TRANSACTION", transactionId,
+                "{\"attachmentCount\":" + attachment.size() + "}");
         transactions.delete(companyId, transactionId);
     }
 
@@ -150,6 +162,6 @@ public class TransactionService {
                 transaction.partyName(), transaction.regionId(), transaction.regionName(),
                 transaction.type().name(), transaction.amount(), transaction.transactionDate().toString(),
                 transaction.description(), transaction.notes(), transaction.createdAt().toString(),
-                transaction.updatedAt().toString());
+                transaction.updatedAt().toString(), transaction.attachment());
     }
 }

@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.ledgerflow.attachment.AttachmentView;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -22,7 +23,7 @@ public class FinancialRepository {
     }
     public record LedgerRow(long id, long partyId, String partyName, long regionId, String regionName,
                             String type, long amount, LocalDate transactionDate,
-                            String description, String notes) {}
+                            String description, String notes, AttachmentView attachment) {}
     public record MonthActivity(String month, long credit, long debit) {}
     public record RegionIdentity(long id, String name) {}
     public record PartyPeriod(long partyId, String partyName, String phone, String address, String gstin,
@@ -82,10 +83,13 @@ public class FinancialRepository {
         }
         List<LedgerRow> rows = jdbc.query("""
                 SELECT t.id,t.party_id,p.name AS party_name,p.region_id,r.name AS region_name,
-                       t.type,t.amount,t.transaction_date,t.description,t.notes
+                       t.type,t.amount,t.transaction_date,t.description,t.notes,
+                       a.id AS attachment_id,a.original_name AS attachment_original_name,
+                       a.mime_type AS attachment_mime_type,a.byte_size AS attachment_byte_size
                 FROM transactions t
                 JOIN parties p ON p.id=t.party_id AND p.company_id=t.company_id
                 JOIN regions r ON r.id=p.region_id AND r.company_id=p.company_id
+                LEFT JOIN transaction_attachments a ON a.transaction_id=t.id AND a.company_id=t.company_id
                 """ + parts.where() + " ORDER BY t.transaction_date " + direction + ",t.id " + direction
                 + limitClause, this::mapLedgerRow, parameters.toArray());
         return rows;
@@ -213,7 +217,10 @@ public class FinancialRepository {
         return new LedgerRow(rs.getLong("id"), rs.getLong("party_id"), rs.getString("party_name"),
                 rs.getLong("region_id"), rs.getString("region_name"), rs.getString("type"),
                 rs.getLong("amount"), LocalDate.parse(rs.getString("transaction_date")),
-                rs.getString("description"), rs.getString("notes"));
+                rs.getString("description"), rs.getString("notes"),
+                rs.getObject("attachment_id") == null ? null : new AttachmentView(
+                        rs.getLong("attachment_id"), rs.getString("attachment_original_name"),
+                        rs.getString("attachment_mime_type"), rs.getLong("attachment_byte_size")));
     }
 
     private record QueryParts(String where, List<Object> parameters) {}

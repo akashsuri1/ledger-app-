@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import com.ledgerflow.attachment.AttachmentView;
 import com.ledgerflow.common.TextNormalizer;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -32,7 +33,8 @@ public class TransactionRepository {
             String description,
             String notes,
             Instant createdAt,
-            Instant updatedAt
+            Instant updatedAt,
+            AttachmentView attachment
     ) {}
 
     public record Page(List<LedgerTransaction> items, long total) {}
@@ -148,10 +150,13 @@ public class TransactionRepository {
 
     private String baseSelect() {
         return """
-                SELECT t.*,p.name AS party_name,p.region_id,r.name AS region_name
+                SELECT t.*,p.name AS party_name,p.region_id,r.name AS region_name,
+                       a.id AS attachment_id,a.original_name AS attachment_original_name,
+                       a.mime_type AS attachment_mime_type,a.byte_size AS attachment_byte_size
                 FROM transactions t
                 JOIN parties p ON p.id=t.party_id AND p.company_id=t.company_id
                 JOIN regions r ON r.id=p.region_id AND r.company_id=p.company_id
+                LEFT JOIN transaction_attachments a ON a.transaction_id=t.id AND a.company_id=t.company_id
                 """;
     }
 
@@ -177,7 +182,10 @@ public class TransactionRepository {
                 rs.getString("description"),
                 rs.getString("notes"),
                 Instant.parse(rs.getString("created_at")),
-                Instant.parse(rs.getString("updated_at"))
+                Instant.parse(rs.getString("updated_at")),
+                rs.getObject("attachment_id") == null ? null : new AttachmentView(
+                        rs.getLong("attachment_id"), rs.getString("attachment_original_name"),
+                        rs.getString("attachment_mime_type"), rs.getLong("attachment_byte_size"))
         );
     }
 }

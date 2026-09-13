@@ -79,7 +79,7 @@ class DatabaseSchemaIntegrationTest {
                 "SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1",
                 Integer.class
         );
-        assertEquals(2, successfulMigrations);
+        assertEquals(3, successfulMigrations);
 
         Integer domainTableCount = jdbc.queryForObject(
                 """
@@ -247,6 +247,16 @@ class DatabaseSchemaIntegrationTest {
     }
 
     @Test
+    void transactionHasAtMostOneAttachment() {
+        insertLedgerParents();
+        insertTransaction(5000, 10, 1000, 25000L);
+        insertAttachment(7000, 5000, "first.pdf");
+
+        assertThrows(DataAccessException.class,
+                () -> insertAttachment(7001, 5000, "second.pdf"));
+    }
+
+    @Test
     void populatedCompanyCannotBeDeletedByCascade() {
         insertCompany(10, "Company A");
         insertRegion(100, 10, "Punjab", "punjab");
@@ -358,6 +368,14 @@ class DatabaseSchemaIntegrationTest {
 
     private void insertTransaction(long id, long companyId, long partyId, long amount) {
         insertTransactionWithAmount(id, companyId, partyId, amount);
+    }
+
+    private void insertAttachment(long id, long transactionId, String storageKey) {
+        jdbc.update("""
+                INSERT INTO transaction_attachments(
+                    id,company_id,transaction_id,storage_key,original_name,mime_type,byte_size,created_at
+                ) VALUES(?,10,?,?,?,'application/pdf',10,?)
+                """, id, transactionId, storageKey, storageKey, NOW);
     }
 
     private void insertTransactionWithAmount(

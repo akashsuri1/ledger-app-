@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 
+import com.ledgerflow.attachment.AttachmentView;
 import com.ledgerflow.financial.FinancialCalculationService;
 import com.ledgerflow.financial.FinancialRepository;
 import com.ledgerflow.membership.CompanyAccessService;
@@ -33,7 +34,7 @@ public class DashboardService {
 
     public record RecentTransaction(long id, long partyId, String partyName, long regionId,
                                     String regionName, String type, long amount, String transactionDate,
-                                    String description, String notes) {}
+                                    String description, String notes, AttachmentView attachment) {}
     public record RegionSummary(long id, String name, long partyCount,
                                 long receivable, long payable, long net) {}
     public record ChartPoint(String key, String month, long credit, long debit) {}
@@ -96,7 +97,7 @@ public class DashboardService {
     private RecentTransaction recent(FinancialRepository.LedgerRow row) {
         return new RecentTransaction(row.id(), row.partyId(), row.partyName(), row.regionId(),
                 row.regionName(), row.type(), row.amount(), row.transactionDate().toString(),
-                row.description(), row.notes());
+                row.description(), row.notes(), row.attachment());
     }
 
     private static final class MutableRegion {

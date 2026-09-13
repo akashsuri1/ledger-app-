@@ -11,8 +11,13 @@ spring:
   sql:
     init:
       mode: never
+  servlet:
+    multipart:
+      max-file-size: ${LEDGERFLOW_ATTACHMENT_MAX_SIZE:10MB}
+      max-request-size: ${LEDGERFLOW_ATTACHMENT_REQUEST_MAX_SIZE:11MB}
 
 ledgerflow:
+  data-dir: ${LEDGERFLOW_DATA_DIR:${user.home}/.ledgerflow/data}
   database:
     path: ${LEDGERFLOW_DATABASE_PATH:${user.home}/.ledgerflow/data/ledgerflow.db}
   security:
@@ -24,3 +29,5 @@ ledgerflow:
     allowed-origins: ${LEDGERFLOW_ALLOWED_ORIGINS:http://localhost:5173}
     auth-rate-limit: 30
     auth-rate-window: 1m
+  attachments:
+    max-size: ${LEDGERFLOW_ATTACHMENT_MAX_SIZE:10MB}
