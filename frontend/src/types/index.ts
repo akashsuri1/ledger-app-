@@ -1,6 +1,7 @@
 import type {
   PrintSettings,
 } from "./settings";
+import type { MembershipRole } from "../api/types";
 
 export type TransactionType =
   | "CREDIT"
@@ -21,6 +22,7 @@ export interface Company {
   email: string;
   createdAt: string;
   settings: CompanyLedgerSettings;
+  role?: MembershipRole;
 }
 
 export interface Region {
@@ -39,6 +41,9 @@ export interface Party {
   gstin: string;
   notes: string;
   createdAt: string;
+  regionName?: string;
+  balance?: number;
+  transactionCount?: number;
 }
 
 export interface LedgerTransaction {
@@ -47,6 +52,10 @@ export interface LedgerTransaction {
   companyId: number;
 
   partyId: number;
+
+  partyName?: string;
+
+  regionName?: string;
 
   type: TransactionType;
 
@@ -59,6 +68,9 @@ export interface LedgerTransaction {
   notes: string;
 
   attachmentName?: string;
+  attachmentId?: number;
+  attachmentMimeType?: string;
+  attachmentByteSize?: number;
 
   createdAt: string;
 }
@@ -93,6 +105,7 @@ export interface NewTransaction {
   notes: string;
 
   attachmentName?: string;
+  attachmentFile?: File;
 }
 
 export type UpdateTransaction =

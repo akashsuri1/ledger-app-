@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useState,
 } from "react";
 
@@ -18,6 +19,12 @@ import Modal from "../ui/Modal";
 
 import { useLedger } from "../../hooks/useLedger";
 
+import { transactionApi } from "../../api/transactionApi";
+
+import { mapTransactionDto } from "../../api/mappers";
+
+import type { LedgerTransaction } from "../../types";
+
 interface EditTransactionModalProps {
   open: boolean;
   transactionId: number | null;
@@ -28,21 +35,23 @@ function EditTransactionModalContent({
   open,
   transactionId,
   onClose,
-}: EditTransactionModalProps) {
+  transactionOverride,
+}: EditTransactionModalContentProps) {
   const {
     transactions,
     parties,
     regions,
     updateTransaction,
+    deleteAttachment,
   } = useLedger();
 
-  const transaction =
-    transactionId === null
+  const transaction = transactionOverride ??
+    (transactionId === null
       ? undefined
       : transactions.find(
           (item) =>
             item.id === transactionId,
-        );
+        ));
 
   const [partyId, setPartyId] =
     useState(
@@ -82,6 +91,8 @@ function EditTransactionModalContent({
   ] = useState(
     transaction?.attachmentName ?? "",
   );
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   if (!transaction) {
     return (
@@ -97,7 +108,7 @@ function EditTransactionModalContent({
     );
   }
 
-  function handleSubmit(
+  async function handleSubmit(
     event: FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
@@ -117,10 +128,7 @@ function EditTransactionModalContent({
       return;
     }
 
-    if (
-      !amount ||
-      Number(amount) <= 0
-    ) {
+    if (!amount || !Number.isSafeInteger(Number(amount)) || Number(amount) <= 0) {
       toast.error(
         "Enter a valid amount.",
       );
@@ -146,7 +154,8 @@ function EditTransactionModalContent({
     }
 
     try {
-      updateTransaction(
+      setSubmitting(true);
+      await updateTransaction(
         transaction.id,
         {
           partyId:
@@ -168,13 +177,15 @@ function EditTransactionModalContent({
           attachmentName:
             attachmentName ||
             undefined,
+          attachmentFile: attachmentFile ?? undefined,
         },
       );
+
+      if (transaction.attachmentName && !attachmentName && !attachmentFile) await deleteAttachment(transaction.id);
 
       toast.success(
         "Transaction updated successfully",
       );
-
       onClose();
     } catch (error) {
       toast.error(
@@ -182,6 +193,8 @@ function EditTransactionModalContent({
           ? error.message
           : "Unable to update transaction.",
       );
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -215,6 +228,12 @@ function EditTransactionModalContent({
             <option value="">
               Select Party
             </option>
+
+            {!parties.some((party) => party.id === transaction.partyId) && (
+              <option value={transaction.partyId}>
+                {transaction.partyName ?? `Party #${transaction.partyId}`} — {transaction.regionName ?? "Unknown"}
+              </option>
+            )}
 
             {parties.map(
               (party) => {
@@ -288,7 +307,7 @@ function EditTransactionModalContent({
           <input
             type="number"
             min="1"
-            step="0.01"
+            step="1"
             value={amount}
             onChange={(event) =>
               setAmount(
@@ -402,6 +421,7 @@ function EditTransactionModalContent({
                           .files?.[0];
 
                       if (file) {
+                        setAttachmentFile(file);
                         setAttachmentName(
                           file.name,
                         );
@@ -413,9 +433,7 @@ function EditTransactionModalContent({
                 <button
                   type="button"
                   onClick={() =>
-                    setAttachmentName(
-                      "",
-                    )
+                    (setAttachmentName(""), setAttachmentFile(null))
                   }
                   className="flex items-center gap-2 rounded-lg border border-rose-200 px-3 py-2 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
                 >
@@ -441,6 +459,7 @@ function EditTransactionModalContent({
                       .files?.[0];
 
                   if (file) {
+                    setAttachmentFile(file);
                     setAttachmentName(
                       file.name,
                     );
@@ -451,7 +470,7 @@ function EditTransactionModalContent({
           )}
 
           <p className="mt-2 text-xs text-slate-400">
-            Actual PDF/image replacement will be connected to local file storage later. For now the frontend stores the selected filename.
+            PDF and image files are stored by the backend with this transaction.
           </p>
         </div>
 
@@ -468,9 +487,10 @@ function EditTransactionModalContent({
 
           <button
             type="submit"
+            disabled={submitting}
             className="rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-800"
           >
-            Save Changes
+            {submitting ? "Saving..." : "Save Changes"}
           </button>
         </div>
       </form>
@@ -478,13 +498,57 @@ function EditTransactionModalContent({
   );
 }
 
+interface EditTransactionModalContentProps extends EditTransactionModalProps {
+  transactionOverride?: LedgerTransaction;
+}
+
 export default function EditTransactionModal(
   props: EditTransactionModalProps,
 ) {
+  const { activeCompanyId, transactions } = useLedger();
+  const requestKey = `${activeCompanyId}:${props.transactionId ?? "none"}`;
+  const [remoteTransaction, setRemoteTransaction] = useState<{ key: string; value: LedgerTransaction } | null>(null);
+  const [loadState, setLoadState] = useState<{ key: string; loading: boolean; error: string | null }>({ key: requestKey, loading: false, error: null });
+  const cachedTransaction = props.transactionId === null
+    ? undefined
+    : transactions.find((item) => item.id === props.transactionId);
+
+  useEffect(() => {
+    if (!props.open || props.transactionId === null) return;
+    const controller = new AbortController();
+    queueMicrotask(() => setLoadState({ key: requestKey, loading: true, error: null }));
+    transactionApi.get(activeCompanyId, props.transactionId, controller.signal)
+      .then((value) => {
+        if (!controller.signal.aborted) {
+          setRemoteTransaction({ key: requestKey, value: mapTransactionDto(value) });
+          setLoadState({ key: requestKey, loading: false, error: null });
+        }
+      })
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted) setLoadState({ key: requestKey, loading: false, error: cause instanceof Error ? cause.message : "Unable to load this transaction." });
+      });
+    return () => controller.abort();
+  }, [activeCompanyId, props.open, props.transactionId, requestKey]);
+
+  const currentRemote = remoteTransaction?.key === requestKey ? remoteTransaction.value : undefined;
+  const loading = loadState.key === requestKey ? loadState.loading : props.open;
+  const loadError = loadState.key === requestKey ? loadState.error : null;
+  const transaction = currentRemote ?? cachedTransaction;
+  if (props.open && !transaction) {
+    return (
+      <Modal open={props.open} onClose={props.onClose} title="Edit Transaction">
+        <p className="py-8 text-center text-sm text-slate-500">
+          {loading ? "Loading transaction..." : loadError ?? "Transaction not found."}
+        </p>
+      </Modal>
+    );
+  }
+
   return (
     <EditTransactionModalContent
-      key={props.transactionId ?? "no-transaction"}
+      key={`${props.transactionId ?? "no-transaction"}-${currentRemote ? "remote" : "cached"}`}
       {...props}
+      transactionOverride={transaction}
     />
   );
 }

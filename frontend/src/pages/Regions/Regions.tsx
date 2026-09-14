@@ -41,6 +41,7 @@ export default function Regions() {
     regions,
     parties,
     deleteRegion,
+    canWrite,
     getPartyBalance,
   } = useLedger();
 
@@ -217,7 +218,7 @@ export default function Regions() {
     setEditRegionId(null);
   }
 
-  function handleDeleteRegion() {
+  async function handleDeleteRegion() {
     if (
       deleteRegionId ===
       null
@@ -226,7 +227,7 @@ export default function Regions() {
     }
 
     try {
-      deleteRegion(
+      await deleteRegion(
         deleteRegionId,
       );
 
@@ -266,7 +267,7 @@ export default function Regions() {
             </p>
           </div>
 
-          <button
+          {canWrite && <button
             type="button"
             onClick={
               openAddRegion
@@ -276,7 +277,7 @@ export default function Regions() {
             <Plus size={17} />
 
             Add Region
-          </button>
+          </button>}
         </div>
 
         {/* SUMMARY */}
@@ -487,7 +488,7 @@ export default function Regions() {
 
                         <td className="px-5 py-4">
                           <div className="flex items-center justify-end gap-1">
-                            <button
+                            {canWrite && <button
                               type="button"
                               title="Edit region"
                               onClick={(event) => {
@@ -502,9 +503,9 @@ export default function Regions() {
                               <Pencil
                                 size={16}
                               />
-                            </button>
+                            </button>}
 
-                            <button
+                            {canWrite && <button
                               type="button"
                               title="Delete region"
                               onClick={(event) => {
@@ -519,7 +520,7 @@ export default function Regions() {
                               <Trash2
                                 size={16}
                               />
-                            </button>
+                            </button>}
 
                             <ArrowRight
                               size={17}

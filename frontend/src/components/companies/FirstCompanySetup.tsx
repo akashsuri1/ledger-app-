@@ -13,7 +13,7 @@ import type {
 } from "../../types";
 
 interface FirstCompanySetupProps {
-  onCreate: (company: NewCompany) => Company;
+  onCreate: (company: NewCompany) => Promise<Company>;
 }
 
 function cleanCompanyName(value: string) {
@@ -32,7 +32,7 @@ export default function FirstCompanySetup({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const cleanName = cleanCompanyName(name);
@@ -61,7 +61,7 @@ export default function FirstCompanySetup({
     setError(null);
 
     try {
-      onCreate({
+      await onCreate({
         name: cleanName,
         gstin: gstin.trim().toUpperCase(),
         phone: cleanPhone,
@@ -109,7 +109,7 @@ export default function FirstCompanySetup({
             <div className="mt-8 space-y-4 text-sm text-slate-300">
               <div className="flex gap-3">
                 <ShieldCheck className="mt-0.5 shrink-0 text-emerald-400" size={18} />
-                <p>Your ledger is saved in this browser on this device.</p>
+                <p>Your ledger is stored securely by the LedgerFlow backend.</p>
               </div>
               <div className="flex gap-3">
                 <CheckCircle2 className="mt-0.5 shrink-0 text-emerald-400" size={18} />

@@ -1,6 +1,7 @@
 import {
   useMemo,
   useState,
+  useEffect,
 } from "react";
 
 import {
@@ -48,6 +49,8 @@ import {
   compareTransactionsNewestFirst,
 } from "../../utils/dateTime";
 import { paginateItems } from "../../utils/pagination";
+import { transactionApi } from "../../api/transactionApi";
+import type { PageMeta, TransactionDto } from "../../api/types";
 
 type TransactionTypeFilter =
   | "ALL"
@@ -62,9 +65,11 @@ function TransactionsWorkspace() {
 
   const {
     transactions,
+    activeCompanyId,
     parties,
     regions,
     deleteTransaction,
+    canWrite,
   } = useLedger();
 
   const {
@@ -111,6 +116,7 @@ function TransactionsWorkspace() {
     pageSize,
     setPageSize,
   ] = useState(10);
+  const [serverPage,setServerPage]=useState<{key:string;data:TransactionDto[];meta:PageMeta}|null>(null);
 
   const [
     selectedTransactionId,
@@ -123,10 +129,7 @@ function TransactionsWorkspace() {
         );
 
         return Number.isSafeInteger(value) &&
-          value > 0 &&
-          transactions.some(
-            (transaction) => transaction.id === value,
-          )
+          value > 0
           ? value
           : null;
       },
@@ -305,16 +308,20 @@ function TransactionsWorkspace() {
       toDate,
     ]);
 
+  const requestKey=`${activeCompanyId}|${search}|${partyFilter}|${regionFilter}|${typeFilter}|${fromDate}|${toDate}|${currentPage}|${pageSize}`;
+  useEffect(()=>{const controller=new AbortController();const timer=window.setTimeout(()=>{void transactionApi.list(activeCompanyId,{search:search.trim()||undefined,partyId:partyFilter==="ALL"?undefined:Number(partyFilter),regionId:regionFilter==="ALL"?undefined:Number(regionFilter),type:typeFilter==="ALL"?undefined:typeFilter,from:fromDate||undefined,to:toDate||undefined,page:currentPage,pageSize},controller.signal).then(result=>setServerPage({key:requestKey,...result})).catch(cause=>{if(!(cause instanceof DOMException&&cause.name==="AbortError"))toast.error(cause instanceof Error?cause.message:"Unable to load transactions.")})},250);return()=>{window.clearTimeout(timer);controller.abort()}},[activeCompanyId,currentPage,fromDate,pageSize,partyFilter,regionFilter,requestKey,search,toDate,typeFilter]);
+
   const pagination = paginateItems(
     filteredTransactions,
     currentPage,
     pageSize,
   );
-  const paginatedTransactions = pagination.items;
-  const visiblePage = pagination.page;
-  const totalPages = pagination.totalPages;
-  const firstVisible = pagination.firstVisible;
-  const lastVisible = pagination.lastVisible;
+  const activeServerPage=serverPage?.key===requestKey?serverPage:null;
+  const paginatedTransactions=activeServerPage?activeServerPage.data.map(value=>({id:value.id,companyId:value.companyId,partyId:value.partyId,type:value.type,amount:value.amount,transactionDate:value.transactionDate,description:value.description,notes:value.notes,createdAt:value.createdAt,attachmentName:value.attachment?.originalName,attachmentId:value.attachment?.id,attachmentMimeType:value.attachment?.mimeType,attachmentByteSize:value.attachment?.byteSize})):pagination.items;
+  const visiblePage=activeServerPage?.meta.page??pagination.page;
+  const totalPages=activeServerPage?.meta.totalPages??pagination.totalPages;
+  const firstVisible=activeServerPage?(activeServerPage.meta.total===0?0:(visiblePage-1)*pageSize+1):pagination.firstVisible;
+  const lastVisible=activeServerPage?Math.min(visiblePage*pageSize,activeServerPage.meta.total):pagination.lastVisible;
 
   /*
    * DELETE INFO
@@ -375,7 +382,7 @@ function TransactionsWorkspace() {
     );
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (
       deleteTransactionId ===
       null
@@ -384,7 +391,7 @@ function TransactionsWorkspace() {
     }
 
     try {
-      deleteTransaction(
+      await deleteTransaction(
         deleteTransactionId,
       );
 
@@ -424,7 +431,7 @@ function TransactionsWorkspace() {
             </p>
           </div>
 
-          <button
+          {canWrite && <button
             type="button"
             onClick={() =>
               openTransactionModal(
@@ -435,7 +442,7 @@ function TransactionsWorkspace() {
           >
             <Plus size={17} />
             Add Transaction
-          </button>
+          </button>}
         </div>
 
         {/* SUMMARY */}
@@ -910,7 +917,7 @@ function TransactionsWorkspace() {
                                 <Eye size={17} />
                               </button>
 
-                              <button
+                              {canWrite && <button
                                 type="button"
                                 title="Edit transaction"
                                 aria-label="Edit transaction"
@@ -924,9 +931,9 @@ function TransactionsWorkspace() {
                                 className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-900"
                               >
                                 <Pencil size={17} />
-                              </button>
+                              </button>}
 
-                              <button
+                              {canWrite && <button
                                 type="button"
                                 title="Delete transaction"
                                 aria-label="Delete transaction"
@@ -940,7 +947,7 @@ function TransactionsWorkspace() {
                                 className="rounded-lg p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
                               >
                                 <Trash2 size={17} />
-                              </button>
+                              </button>}
                             </div>
                           </td>
                         </tr>

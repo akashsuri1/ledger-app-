@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   useNavigate,
@@ -46,6 +46,11 @@ import {
   formatTransactionDate,
   compareTransactionsNewestFirst,
 } from "../../utils/dateTime";
+import { partyApi } from "../../api/partyApi";
+import { reportApi } from "../../api/reportApi";
+import type { PartyStatementDto } from "../../api/reportApi";
+import { mapPartyDto } from "../../api/mappers";
+import type { Party } from "../../types";
 
 export default function PartyDetails() {
   const navigate =
@@ -57,6 +62,8 @@ export default function PartyDetails() {
   const {
     parties,
     transactions,
+    activeCompanyId,
+    canWrite,
     deleteParty,
     deleteTransaction,
     getPartyBalance,
@@ -106,11 +113,49 @@ export default function PartyDetails() {
   const id =
     Number(partyId);
 
-  const party =
+  const cachedParty =
     parties.find(
       (item) =>
         item.id === id,
     );
+
+  const detailKey = `${activeCompanyId}:${id}`;
+  const [detail, setDetail] = useState<{ key: string; party: Party; statement: PartyStatementDto } | null>(null);
+  const [detailStatus, setDetailStatus] = useState<{ key: string; loading: boolean; error: string | null }>({ key: detailKey, loading: true, error: null });
+
+  useEffect(() => {
+    if (!Number.isSafeInteger(id) || id <= 0) return;
+
+    const controller = new AbortController();
+    queueMicrotask(() => setDetailStatus({ key: detailKey, loading: true, error: null }));
+    Promise.all([
+      partyApi.get(activeCompanyId, id, controller.signal),
+      reportApi.partyStatement(activeCompanyId, { partyId: id, limit: "ALL" }),
+    ])
+      .then(([partyValue, statementValue]) => {
+        if (controller.signal.aborted) return;
+        setDetail({ key: detailKey, party: mapPartyDto(partyValue), statement: statementValue });
+        setDetailStatus({ key: detailKey, loading: false, error: null });
+      })
+      .catch((cause: unknown) => {
+        if (controller.signal.aborted) return;
+        setDetailStatus({ key: detailKey, loading: false, error: cause instanceof Error ? cause.message : "Unable to load this party." });
+      });
+
+    return () => controller.abort();
+  }, [activeCompanyId, detailKey, id, parties, transactions]);
+
+  const currentDetail = detail?.key === detailKey ? detail : null;
+  const detailLoading = detailStatus.key === detailKey ? detailStatus.loading : true;
+  const detailError = !Number.isSafeInteger(id) || id <= 0
+    ? "The selected party does not exist."
+    : detailStatus.key === detailKey ? detailStatus.error : null;
+  const party = currentDetail?.party ?? cachedParty;
+  const statement = currentDetail?.statement ?? null;
+
+  if (detailLoading && !party) {
+    return <div className="mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white p-12 text-center text-sm text-slate-500 shadow-sm">Loading party ledger...</div>;
+  }
 
   if (!party) {
     return (
@@ -120,7 +165,7 @@ export default function PartyDetails() {
         </h2>
 
         <p className="mt-2 text-sm text-slate-500">
-          The selected party does not exist.
+          {detailError ?? "The selected party does not exist."}
         </p>
 
         <button
@@ -142,16 +187,25 @@ export default function PartyDetails() {
       party.regionId,
     );
 
-  const partyTransactions =
-    transactions
-      .filter(
-        (transaction) =>
-          transaction.partyId ===
-          party.id,
-      )
-      .sort(compareTransactionsNewestFirst);
+  const partyTransactions = statement
+    ? statement.transactions.map((transaction) => ({
+        id: transaction.id,
+        companyId: activeCompanyId,
+        partyId: party.id,
+        type: transaction.type,
+        amount: transaction.credit ?? transaction.debit ?? Math.abs(transaction.signedAmount),
+        transactionDate: transaction.transactionDate,
+        description: transaction.description,
+        notes: transaction.notes,
+        createdAt: transaction.transactionDate,
+        attachmentName: transaction.attachment?.originalName,
+        attachmentId: transaction.attachment?.id,
+        attachmentMimeType: transaction.attachment?.mimeType,
+        attachmentByteSize: transaction.attachment?.byteSize,
+      })).sort(compareTransactionsNewestFirst)
+    : transactions.filter((transaction) => transaction.partyId === party.id).sort(compareTransactionsNewestFirst);
 
-  const totalCredit =
+  const totalCredit = statement?.totalCredit ??
     partyTransactions
       .filter(
         (transaction) =>
@@ -168,7 +222,7 @@ export default function PartyDetails() {
         0,
       );
 
-  const totalDebit =
+  const totalDebit = statement?.totalDebit ??
     partyTransactions
       .filter(
         (transaction) =>
@@ -185,10 +239,7 @@ export default function PartyDetails() {
         0,
       );
 
-  const balance =
-    getPartyBalance(
-      party.id,
-    );
+  const balance = party.balance ?? statement?.closingBalance ?? getPartyBalance(party.id);
 
   const transactionToDelete =
     deleteTransactionId ===
@@ -200,7 +251,7 @@ export default function PartyDetails() {
             deleteTransactionId,
         );
 
-  function handleDeleteTransaction() {
+  async function handleDeleteTransaction() {
     if (
       deleteTransactionId ===
       null
@@ -209,7 +260,7 @@ export default function PartyDetails() {
     }
 
     try {
-      deleteTransaction(
+      await deleteTransaction(
         deleteTransactionId,
       );
 
@@ -229,7 +280,7 @@ export default function PartyDetails() {
     }
   }
 
-  function handleDeleteParty() {
+  async function handleDeleteParty() {
   if (!party) {
     toast.error(
       "Party not found.",
@@ -243,7 +294,7 @@ export default function PartyDetails() {
   }
 
   try {
-    deleteParty(
+    await deleteParty(
       party.id,
     );
 
@@ -343,7 +394,7 @@ export default function PartyDetails() {
           {/* ACTIONS */}
 
           <div className="flex flex-wrap gap-3">
-            <button
+            {canWrite && <button
               onClick={() =>
                 setEditPartyOpen(
                   true,
@@ -356,9 +407,9 @@ export default function PartyDetails() {
               />
 
               Edit Party
-            </button>
+            </button>}
 
-            <button
+            {canWrite && <button
               onClick={() =>
                 openTransactionModal(
                   "CREDIT",
@@ -372,9 +423,9 @@ export default function PartyDetails() {
               />
 
               Add Credit
-            </button>
+            </button>}
 
-            <button
+            {canWrite && <button
               onClick={() =>
                 openTransactionModal(
                   "DEBIT",
@@ -388,7 +439,7 @@ export default function PartyDetails() {
               />
 
               Add Debit
-            </button>
+            </button>}
 
             <button
               onClick={() =>
@@ -679,7 +730,7 @@ export default function PartyDetails() {
                                 />
                               </button>
 
-                              <button
+                              {canWrite && <button
                                 type="button"
                                 title="Edit transaction"
                                 onClick={(event) => {
@@ -694,9 +745,9 @@ export default function PartyDetails() {
                                 <Pencil
                                   size={16}
                                 />
-                              </button>
+                              </button>}
 
-                              <button
+                              {canWrite && <button
                                 type="button"
                                 title="Delete transaction"
                                 onClick={(event) => {
@@ -711,7 +762,7 @@ export default function PartyDetails() {
                                 <Trash2
                                   size={16}
                                 />
-                              </button>
+                              </button>}
                             </div>
                           </td>
                         </tr>
@@ -848,13 +899,13 @@ export default function PartyDetails() {
 
         {/* DANGER ZONE */}
 
-        <div className="mt-6 rounded-2xl border border-rose-100 bg-rose-50/40 p-5">
+        {canWrite && <div className="mt-6 rounded-2xl border border-rose-100 bg-rose-50/40 p-5">
           <h3 className="text-sm font-semibold text-rose-700">
             Delete Party
           </h3>
 
           <p className="mt-1 text-sm text-rose-600">
-            A party with transaction history cannot be deleted until its transactions are removed.
+            Deleting this party also permanently deletes its transactions and attachments.
           </p>
 
           <button
@@ -871,12 +922,12 @@ export default function PartyDetails() {
 
             Delete Party
           </button>
-        </div>
+        </div>}
       </div>
 
       {/* EDIT PARTY */}
 
-      <EditPartyModal
+      {canWrite && <EditPartyModal
         open={
           editPartyOpen
         }
@@ -888,7 +939,7 @@ export default function PartyDetails() {
             false,
           )
         }
-      />
+      />}
 
       {/* TRANSACTION DETAILS */}
 
@@ -927,7 +978,7 @@ export default function PartyDetails() {
 
       {/* EDIT TRANSACTION */}
 
-      <EditTransactionModal
+      {canWrite && <EditTransactionModal
         open={
           editTransactionId !==
           null
@@ -940,11 +991,11 @@ export default function PartyDetails() {
             null,
           )
         }
-      />
+      />}
 
       {/* DELETE TRANSACTION */}
 
-      <ConfirmDialog
+      {canWrite && <ConfirmDialog
         open={
           deleteTransactionId !==
           null
@@ -967,11 +1018,11 @@ export default function PartyDetails() {
         onConfirm={
           handleDeleteTransaction
         }
-      />
+      />}
 
       {/* DELETE PARTY */}
 
-      <ConfirmDialog
+      {canWrite && <ConfirmDialog
         open={
           deletePartyOpen
         }
@@ -1008,7 +1059,7 @@ export default function PartyDetails() {
         onConfirm={
           handleDeleteParty
         }
-      />
+      />}
     </>
   );
 }

@@ -118,14 +118,14 @@ export default function ManageCompaniesModal({
                     </button>
                   )}
 
-                  <button
+                  {(company.role === "OWNER" || company.role === "ADMIN" || company.role === undefined) && <button
                     type="button"
                     onClick={() => onEdit(company)}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                   >
                     <Pencil size={13} aria-hidden="true" />
                     Edit details
-                  </button>
+                  </button>}
 
                   {deletableCompanyIds.has(company.id) && (
                     <button

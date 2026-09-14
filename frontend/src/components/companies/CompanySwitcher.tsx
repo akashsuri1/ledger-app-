@@ -99,7 +99,7 @@ export default function CompanySwitcher() {
     }
   }
 
-  function handleSwitch(company: Company) {
+  async function handleSwitch(company: Company) {
     setMenuOpen(false);
     setManageOpen(false);
 
@@ -107,7 +107,7 @@ export default function CompanySwitcher() {
       return;
     }
 
-    switchCompany(company.id);
+    await switchCompany(company.id);
     clearCompanyBoundRoute();
     toast.success(`Switched to ${company.name}`, {
       description:
@@ -132,14 +132,14 @@ export default function CompanySwitcher() {
     setCompanyToDelete(company);
   }
 
-  function handleDeleteCompany() {
+  async function handleDeleteCompany() {
     if (!companyToDelete) return;
 
     const deletingActiveCompany = companyToDelete.id === activeCompanyId;
     const deletedName = companyToDelete.name;
 
     try {
-      deleteCompany(companyToDelete.id);
+      await deleteCompany(companyToDelete.id);
       setCompanyToDelete(null);
 
       if (deletingActiveCompany && companies.length > 1) {

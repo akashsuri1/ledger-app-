@@ -26,6 +26,11 @@ npm run dev
 See [frontend/README.md](frontend/README.md) for features, LocalStorage migration,
 backup behavior, and frontend checks.
 
+Run the backend first on port 8080. Copy `frontend/.env.example` to
+`frontend/.env.local` when a different API URL is needed. The frontend sends
+credentialed cookie requests and the backend allows `http://localhost:5173` by
+default.
+
 ## Backend
 
 ```powershell

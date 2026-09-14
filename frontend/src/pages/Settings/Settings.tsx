@@ -305,7 +305,7 @@ function SettingsWorkspace() {
     }));
   }
 
-  function saveChanges() {
+  async function saveChanges() {
     if (hasErrors) {
       setActiveTab("BUSINESS");
       toast.error("Check the highlighted fields before saving.");
@@ -313,12 +313,12 @@ function SettingsWorkspace() {
     }
 
     const nextSettings = normalizeDraft(draft);
-    const result = updateSettings(nextSettings);
+    const result = await updateSettings(nextSettings);
     setDraft(nextSettings);
 
     if (result.ok) {
       toast.success("Settings saved", {
-        description: "Your preferences are saved in this browser.",
+        description: "Your preferences are saved by the LedgerFlow backend.",
       });
     } else if (
       result.error.code === "WRITE_FAILED" ||
@@ -344,8 +344,8 @@ function SettingsWorkspace() {
     });
   }
 
-  function confirmResetAllSettings() {
-    const result = resetAllSettings();
+  async function confirmResetAllSettings() {
+    const result = await resetAllSettings();
     const resetDraft = cloneSettings(DEFAULT_SETTINGS);
     resetDraft.business.companyName = settings.business.companyName;
     setDraft(resetDraft);
@@ -401,7 +401,7 @@ function SettingsWorkspace() {
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
             Configure your business identity, appearance, and statement
-            defaults. Settings are stored locally in this browser.
+            defaults. Company settings are stored by the backend.
           </p>
         </div>
 
@@ -1035,7 +1035,7 @@ function SettingsWorkspace() {
                     Open Backup & Restore
                   </h3>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                    Download one versioned JSON backup containing every company,
+                    Download an encrypted backup containing this company,
                     ledger record, company preference, and application appearance
                     setting. You can also validate and safely restore a full backup.
                   </p>

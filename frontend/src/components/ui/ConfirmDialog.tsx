@@ -2,6 +2,7 @@ import Modal from "./Modal";
 
 import {
   useId,
+  useState,
 } from "react";
 
 interface ConfirmDialogProps {
@@ -11,7 +12,7 @@ interface ConfirmDialogProps {
   confirmLabel?: string;
   cancelLabel?: string;
   tone?: "danger" | "normal";
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   onCancel: () => void;
 }
 
@@ -26,11 +27,22 @@ export default function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   const descriptionId = useId();
+  const [pending, setPending] = useState(false);
+
+  async function confirm() {
+    if (pending) return;
+    setPending(true);
+    try {
+      await onConfirm();
+    } finally {
+      setPending(false);
+    }
+  }
 
   return (
     <Modal
       open={open}
-      onClose={onCancel}
+      onClose={() => { if (!pending) onCancel(); }}
       title={title}
       ariaDescribedBy={descriptionId}
     >
@@ -45,6 +57,7 @@ export default function ConfirmDialog({
         <button
           type="button"
           onClick={onCancel}
+          disabled={pending}
           data-modal-initial-focus
           className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
         >
@@ -53,14 +66,15 @@ export default function ConfirmDialog({
 
         <button
           type="button"
-          onClick={onConfirm}
+          onClick={() => void confirm()}
+          disabled={pending}
           className={`rounded-xl px-5 py-2.5 text-sm font-medium text-white transition ${
             tone === "danger"
               ? "bg-rose-600 hover:bg-rose-700"
               : "bg-slate-950 hover:bg-slate-800"
           }`}
         >
-          {confirmLabel}
+          {pending ? "Working..." : confirmLabel}
         </button>
       </div>
     </Modal>

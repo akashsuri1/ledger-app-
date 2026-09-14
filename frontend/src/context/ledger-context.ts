@@ -1,23 +1,7 @@
 import { createContext } from "react";
-
-import type {
-  Company,
-  LedgerTransaction,
-  NewCompany,
-  NewParty,
-  NewRegion,
-  NewTransaction,
-  Party,
-  Region,
-  UpdateCompany,
-  UpdateParty,
-  UpdateTransaction,
-} from "../types";
-import type {
-  AppearanceSettings,
-  AppSettingsPatch,
-  SettingsStorageError,
-} from "../types/settings";
+import type { DashboardDto, MembershipRole } from "../api/types";
+import type { Company, LedgerTransaction, NewCompany, NewParty, NewRegion, NewTransaction, Party, Region, UpdateCompany, UpdateParty, UpdateTransaction } from "../types";
+import type { AppearanceSettings, AppSettingsPatch, SettingsStorageError } from "../types/settings";
 import type { LedgerWorkspace } from "../types/workspace";
 import type { SettingsSaveResult } from "../utils/settingsStorage";
 
@@ -32,32 +16,36 @@ export interface LedgerContextValue {
   transactions: LedgerTransaction[];
   storageError: SettingsStorageError | null;
   isPersisted: boolean;
-  createCompany: (company: NewCompany) => Company;
-  updateCompany: (companyId: number, data: UpdateCompany) => void;
+  isLoading: boolean;
+  error: string | null;
+  activeRole: MembershipRole;
+  canWrite: boolean;
+  isOwner: boolean;
+  dashboard: DashboardDto | null;
+  refreshCompanyData: () => Promise<void>;
+  createCompany: (company: NewCompany) => Promise<Company>;
+  updateCompany: (companyId: number, data: UpdateCompany) => Promise<void>;
   canDeleteCompany: (companyId: number) => boolean;
-  deleteCompany: (companyId: number) => void;
-  switchCompany: (companyId: number) => void;
-  addParty: (party: NewParty) => Party;
-  updateParty: (partyId: number, data: UpdateParty) => void;
-  deleteParty: (partyId: number) => void;
-  addRegion: (region: NewRegion) => Region;
-  updateRegion: (regionId: number, name: string) => void;
-  deleteRegion: (regionId: number) => void;
-  addTransaction: (transaction: NewTransaction) => LedgerTransaction;
-  updateTransaction: (
-    transactionId: number,
-    data: UpdateTransaction,
-  ) => void;
-  deleteTransaction: (transactionId: number) => void;
+  deleteCompany: (companyId: number) => Promise<void>;
+  switchCompany: (companyId: number) => Promise<void>;
+  addParty: (party: NewParty) => Promise<Party>;
+  updateParty: (partyId: number, data: UpdateParty) => Promise<void>;
+  deleteParty: (partyId: number) => Promise<void>;
+  addRegion: (region: NewRegion) => Promise<Region>;
+  updateRegion: (regionId: number, name: string) => Promise<void>;
+  deleteRegion: (regionId: number) => Promise<void>;
+  addTransaction: (transaction: NewTransaction) => Promise<LedgerTransaction>;
+  updateTransaction: (transactionId: number, data: UpdateTransaction) => Promise<void>;
+  deleteTransaction: (transactionId: number) => Promise<void>;
+  downloadAttachment: (transactionId: number) => Promise<void>;
+  deleteAttachment: (transactionId: number) => Promise<void>;
   getPartyBalance: (partyId: number) => number;
   getRegionById: (regionId: number) => Region | undefined;
   resetDemoData: () => void;
-  applySettingsPatch: (patch: AppSettingsPatch) => SettingsSaveResult;
+  applySettingsPatch: (patch: AppSettingsPatch) => Promise<SettingsSaveResult>;
   clearStorageError: () => void;
   getWorkspaceSnapshot: () => LedgerWorkspace;
   replaceWorkspace: (workspace: unknown) => SettingsSaveResult;
 }
 
-export const LedgerContext = createContext<LedgerContextValue | undefined>(
-  undefined,
-);
+export const LedgerContext = createContext<LedgerContextValue | undefined>(undefined);

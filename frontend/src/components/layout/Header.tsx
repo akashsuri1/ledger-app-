@@ -36,6 +36,9 @@ import {
   formatTransactionDate,
   compareTransactionsNewestFirst,
 } from "../../utils/dateTime";
+import { partyApi } from "../../api/partyApi";
+import { transactionApi } from "../../api/transactionApi";
+import type { LedgerTransaction, Party } from "../../types";
 
 export default function Header() {
   const navigate =
@@ -46,6 +49,8 @@ export default function Header() {
     regions,
     transactions,
     getPartyBalance,
+    canWrite,
+    activeCompanyId,
   } = useLedger();
 
   const {
@@ -55,6 +60,8 @@ export default function Header() {
 
   const [query, setQuery] =
     useState("");
+  const [searchParties,setSearchParties]=useState<Party[]>([]);
+  const [searchTransactions,setSearchTransactions]=useState<LedgerTransaction[]>([]);
 
   const [
     searchOpen,
@@ -98,13 +105,15 @@ export default function Header() {
       .trim()
       .toLowerCase();
 
+  useEffect(()=>{if(!normalizedQuery)return;const controller=new AbortController();const timer=window.setTimeout(()=>{void Promise.all([partyApi.list(activeCompanyId,{search:normalizedQuery,page:1,pageSize:5},controller.signal),transactionApi.list(activeCompanyId,{search:normalizedQuery,page:1,pageSize:5},controller.signal)]).then(([partyPage,transactionPage])=>{setSearchParties(partyPage.data.map(item=>({id:item.id,companyId:item.companyId,regionId:item.regionId,regionName:item.regionName,name:item.name,phone:item.phone,address:item.address,gstin:item.gstin,notes:item.notes,createdAt:item.createdAt,balance:item.balance,transactionCount:item.transactionCount})));setSearchTransactions(transactionPage.data.map(item=>({id:item.id,companyId:item.companyId,partyId:item.partyId,type:item.type,amount:item.amount,transactionDate:item.transactionDate,description:item.description,notes:item.notes,createdAt:item.createdAt,attachmentName:item.attachment?.originalName,attachmentId:item.attachment?.id,attachmentMimeType:item.attachment?.mimeType,attachmentByteSize:item.attachment?.byteSize})))}).catch(()=>undefined)},250);return()=>{window.clearTimeout(timer);controller.abort()}},[activeCompanyId,normalizedQuery]);
+
   const partyResults =
     useMemo(() => {
       if (!normalizedQuery) {
         return [];
       }
 
-      return parties
+      return (searchParties.length ? searchParties : parties)
         .filter((party) => {
           const region =
             regions.find(
@@ -149,6 +158,7 @@ export default function Header() {
         .slice(0, 5);
     }, [
       parties,
+      searchParties,
       regions,
       normalizedQuery,
     ]);
@@ -159,7 +169,7 @@ export default function Header() {
         return [];
       }
 
-      return transactions
+      return (searchTransactions.length ? searchTransactions : transactions)
         .filter(
           (transaction) => {
             const party =
@@ -211,6 +221,7 @@ export default function Header() {
         .slice(0, 5);
     }, [
       transactions,
+      searchTransactions,
       parties,
       regions,
       normalizedQuery,
@@ -498,6 +509,8 @@ export default function Header() {
 
         <button
           type="button"
+          disabled={!canWrite}
+          title={canWrite ? "Add transaction" : "Your role has read-only access"}
           onClick={() =>
             openTransactionModal(
               "CREDIT",

@@ -10,6 +10,7 @@ import {
   Trash2,
   User,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { toast } from "sonner";
 
@@ -20,6 +21,9 @@ import { useLedger } from "../../hooks/useLedger";
 import { formatCurrency } from "../../utils/currency";
 
 import { formatTransactionDate } from "../../utils/dateTime";
+import { transactionApi } from "../../api/transactionApi";
+import { mapTransactionDto } from "../../api/mappers";
+import type { TransactionDto } from "../../api/types";
 
 interface TransactionDetailsModalProps {
   open: boolean;
@@ -40,10 +44,39 @@ export default function TransactionDetailsModal({
     transactions,
     parties,
     regions,
+    activeCompanyId,
+    canWrite,
+    downloadAttachment,
   } = useLedger();
 
-  const transaction =
-    transactionId === null
+  const requestKey = `${activeCompanyId}:${transactionId ?? "none"}`;
+  const [remote, setRemote] = useState<{ key: string; value: TransactionDto } | null>(null);
+  const [loadState, setLoadState] = useState<{ key: string; loading: boolean; error: string | null }>({ key: requestKey, loading: false, error: null });
+
+  useEffect(() => {
+    if (!open || transactionId === null) return;
+    const controller = new AbortController();
+    queueMicrotask(() => setLoadState({ key: requestKey, loading: true, error: null }));
+    transactionApi.get(activeCompanyId, transactionId, controller.signal)
+      .then((value) => {
+        if (!controller.signal.aborted) {
+          setRemote({ key: requestKey, value });
+          setLoadState({ key: requestKey, loading: false, error: null });
+        }
+      })
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted) setLoadState({ key: requestKey, loading: false, error: cause instanceof Error ? cause.message : "Unable to load this transaction." });
+      });
+    return () => controller.abort();
+  }, [activeCompanyId, open, requestKey, transactionId]);
+
+  const currentRemote = remote?.key === requestKey ? remote.value : null;
+  const loading = loadState.key === requestKey ? loadState.loading : open;
+  const loadError = loadState.key === requestKey ? loadState.error : null;
+
+  const transaction = currentRemote
+    ? mapTransactionDto(currentRemote)
+    : transactionId === null
       ? undefined
       : transactions.find(
           (item) =>
@@ -59,7 +92,7 @@ export default function TransactionDetailsModal({
       >
         <div className="py-8 text-center">
           <p className="font-medium text-slate-900">
-            Transaction not found.
+            {loading ? "Loading transaction..." : loadError ?? "Transaction not found."}
           </p>
         </div>
       </Modal>
@@ -152,7 +185,7 @@ export default function TransactionDetailsModal({
             </div>
 
             <p className="mt-2 text-sm font-medium text-slate-900">
-              {party?.name ??
+              {currentRemote?.partyName ?? party?.name ??
                 "Unknown party"}
             </p>
           </div>
@@ -164,7 +197,7 @@ export default function TransactionDetailsModal({
             </div>
 
             <p className="mt-2 text-sm font-medium text-slate-900">
-              {region?.name ??
+              {currentRemote?.regionName ?? region?.name ??
                 "Unknown region"}
             </p>
           </div>
@@ -220,15 +253,7 @@ export default function TransactionDetailsModal({
           {transaction.attachmentName ? (
             <button
               type="button"
-              onClick={() =>
-                toast.info(
-                  "Actual file preview will work after local file storage is connected.",
-                  {
-                    description:
-                      transaction.attachmentName,
-                  },
-                )
-              }
+              onClick={() => void downloadAttachment(transaction.id).catch((error: unknown) => toast.error(error instanceof Error ? error.message : "Unable to download attachment."))}
               className="mt-2 flex w-full items-center gap-3 rounded-xl border border-slate-200 p-4 text-left transition hover:bg-slate-50"
             >
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
@@ -243,7 +268,7 @@ export default function TransactionDetailsModal({
                 </p>
 
                 <p className="mt-0.5 text-xs text-slate-500">
-                  View attachment
+                  Download attachment
                 </p>
               </div>
             </button>
@@ -257,7 +282,7 @@ export default function TransactionDetailsModal({
         {/* ACTIONS */}
 
         <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-between">
-          <button
+          {canWrite && <button
             type="button"
             onClick={() =>
               onDelete(transaction.id)
@@ -266,7 +291,7 @@ export default function TransactionDetailsModal({
           >
             <Trash2 size={16} />
             Delete
-          </button>
+          </button>}
 
           <div className="flex gap-3">
             <button
@@ -277,7 +302,7 @@ export default function TransactionDetailsModal({
               Close
             </button>
 
-            <button
+            {canWrite && <button
               type="button"
               onClick={() =>
                 onEdit(transaction.id)
@@ -286,7 +311,7 @@ export default function TransactionDetailsModal({
             >
               <Pencil size={16} />
               Edit
-            </button>
+            </button>}
           </div>
         </div>
       </div>

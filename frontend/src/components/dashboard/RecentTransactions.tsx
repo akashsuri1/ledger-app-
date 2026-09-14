@@ -7,25 +7,16 @@ import { useNavigate } from "react-router-dom";
 
 import { useLedger } from "../../hooks/useLedger";
 import { formatCurrency } from "../../utils/currency";
-import {
-  compareTransactionsNewestFirst,
-  formatTransactionDate,
-} from "../../utils/dateTime";
+import { formatTransactionDate } from "../../utils/dateTime";
 
 export default function RecentTransactions() {
   const navigate = useNavigate();
 
   const {
-    parties,
-    regions,
-    transactions,
+    dashboard,
   } = useLedger();
 
-  const recentTransactions = [
-    ...transactions,
-  ]
-    .sort(compareTransactionsNewestFirst)
-    .slice(0, 5);
+  const recentTransactions = dashboard?.recentTransactions ?? [];
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -94,18 +85,6 @@ export default function RecentTransactions() {
               const isCredit =
                 transaction.type === "CREDIT";
 
-              const party =
-                parties.find(
-                  (item) =>
-                    item.id === transaction.partyId,
-                );
-
-              const region =
-                regions.find(
-                  (item) =>
-                    item.id === party?.regionId,
-                );
-
               return (
                 <tr
                   key={transaction.id}
@@ -131,7 +110,7 @@ export default function RecentTransactions() {
                   <td className="px-5 py-4">
                     <div>
                       <p className="text-sm font-medium text-slate-900">
-                        {party?.name ?? "Unknown party"}
+                        {transaction.partyName}
                       </p>
 
                       <p className="mt-0.5 text-xs text-slate-400">
@@ -141,7 +120,7 @@ export default function RecentTransactions() {
                   </td>
 
                   <td className="px-5 py-4 text-sm text-slate-600">
-                    {region?.name ?? "Unknown region"}
+                    {transaction.regionName}
                   </td>
 
                   <td className="px-5 py-4">

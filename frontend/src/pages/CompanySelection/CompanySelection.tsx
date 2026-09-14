@@ -10,6 +10,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 import CompanyFormModal from "../../components/companies/CompanyFormModal";
 import { useLedger } from "../../hooks/useLedger";
 import type { Company } from "../../types";
+import { useAuth } from "../../hooks/useAuth";
 
 function getInitials(name: string) {
   return (
@@ -38,14 +39,15 @@ export default function CompanySelection() {
     switchCompany,
   } = useLedger();
   const navigate = useNavigate();
+  const auth = useAuth();
   const [createOpen, setCreateOpen] = useState(false);
 
   if (companies.length === 1) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  function openCompany(companyId: number) {
-    switchCompany(companyId);
+  async function openCompany(companyId: number) {
+    await switchCompany(companyId);
     navigate("/dashboard", { replace: true });
   }
 
@@ -100,7 +102,7 @@ export default function CompanySelection() {
                       {companyDetail(company)}
                     </p>
                     <p className="mt-2 text-xs font-medium uppercase tracking-wide text-slate-400">
-                      Company workspace
+                      {company.role ?? "Member"}
                     </p>
                   </div>
                 </div>
@@ -119,6 +121,8 @@ export default function CompanySelection() {
             );
           })}
         </section>
+
+        <label className="mx-auto mt-6 flex w-fit items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={auth.preferences?.rememberLastCompany??false} onChange={event=>void auth.updatePreferences({rememberLastCompany:event.target.checked,lastActiveCompanyId:event.target.checked?activeCompanyId:null})} className="h-4 w-4 rounded border-slate-300"/>Remember my last company</label>
 
         <div className="mt-6 flex justify-center">
           <button

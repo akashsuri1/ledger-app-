@@ -50,7 +50,7 @@ function getMonthKey(
 }
 
 export default function BalanceChart() {
-  const { transactions } =
+  const { transactions, dashboard } =
     useLedger();
 
   const now = new Date();
@@ -61,6 +61,7 @@ export default function BalanceChart() {
 
   const chartData =
     useMemo(() => {
+      if (dashboard) return dashboard.chart;
       const data: BalanceChartDataPoint[] =
         [];
 
@@ -143,6 +144,7 @@ export default function BalanceChart() {
       currentMonth,
       currentYear,
       transactions,
+      dashboard,
     ]);
 
   const hasActivity =

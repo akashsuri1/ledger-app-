@@ -62,7 +62,7 @@ export default function AddPartyModal({
     onClose();
   }
 
-  function handleSubmit(
+  async function handleSubmit(
     event: FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
@@ -98,7 +98,7 @@ export default function AddPartyModal({
 
     try {
       const party =
-        addParty({
+        await addParty({
           name:
             name.trim(),
 

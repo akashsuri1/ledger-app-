@@ -52,7 +52,7 @@ function RegionModalContent({
     onClose();
   }
 
-  function handleSubmit(
+  async function handleSubmit(
     event: FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
@@ -72,7 +72,7 @@ function RegionModalContent({
       if (
         regionId !== null
       ) {
-        updateRegion(
+        await updateRegion(
           regionId,
           cleanName,
         );
@@ -81,7 +81,7 @@ function RegionModalContent({
           "Region updated successfully",
         );
       } else {
-        addRegion({
+        await addRegion({
           name: cleanName,
         });
 

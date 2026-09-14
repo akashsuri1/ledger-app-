@@ -91,8 +91,10 @@ export default function AddTransactionModal({
     setAttachmentName,
   ] =
     useState("");
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  function handleSubmit(
+  async function handleSubmit(
     event: FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
@@ -104,10 +106,7 @@ export default function AddTransactionModal({
       return;
     }
 
-    if (
-      !amount ||
-      Number(amount) <= 0
-    ) {
+    if (!amount || !Number.isSafeInteger(Number(amount)) || Number(amount) <= 0) {
       toast.error(
         "Enter a valid amount.",
       );
@@ -133,8 +132,9 @@ export default function AddTransactionModal({
     }
 
     try {
+      setSubmitting(true);
       const transaction =
-        addTransaction({
+        await addTransaction({
           partyId:
             Number(partyId),
 
@@ -154,6 +154,7 @@ export default function AddTransactionModal({
           attachmentName:
             attachmentName ||
             undefined,
+          attachmentFile: attachmentFile ?? undefined,
         });
 
       const party =
@@ -186,6 +187,8 @@ export default function AddTransactionModal({
           ? error.message
           : "Unable to save transaction.",
       );
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -307,7 +310,7 @@ export default function AddTransactionModal({
           <input
             type="number"
             min="1"
-            step="0.01"
+            step="1"
             value={amount}
             onChange={(
               event,
@@ -398,6 +401,7 @@ export default function AddTransactionModal({
                     .files?.[0];
 
                 if (file) {
+                  setAttachmentFile(file);
                   setAttachmentName(
                     file.name,
                   );
@@ -415,7 +419,7 @@ export default function AddTransactionModal({
           </label>
 
           <p className="mt-2 text-xs text-slate-400">
-            The filename is stored for now. The actual file will be stored locally when we connect the backend.
+            PDF and image files are uploaded securely after the transaction is saved.
           </p>
         </div>
 
@@ -456,9 +460,10 @@ export default function AddTransactionModal({
 
           <button
             type="submit"
+            disabled={submitting}
             className="rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-800"
           >
-            Save Transaction
+            {submitting ? "Saving..." : "Save Transaction"}
           </button>
         </div>
       </form>

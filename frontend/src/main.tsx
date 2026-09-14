@@ -9,16 +9,7 @@ import {
 } from "react-router-dom";
 
 import App from "./App";
-
-import SettingsAwareToaster from "./components/settings/SettingsAwareToaster";
-
-import {
-  LedgerProvider,
-} from "./context/LedgerContext";
-
-import {
-  SettingsProvider,
-} from "./context/SettingsProvider";
+import { AuthProvider } from "./context/AuthProvider";
 
 import "./index.css";
 
@@ -29,13 +20,7 @@ createRoot(
 ).render(
   <StrictMode>
     <BrowserRouter>
-      <LedgerProvider>
-        <SettingsProvider>
-          <App />
-
-          <SettingsAwareToaster />
-        </SettingsProvider>
-      </LedgerProvider>
+      <AuthProvider><App /></AuthProvider>
     </BrowserRouter>
   </StrictMode>,
 );

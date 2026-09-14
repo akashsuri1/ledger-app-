@@ -1,0 +1,15 @@
+import { apiRequest, queryString } from "./apiClient";
+import type { AttachmentDto } from "./types";
+
+export interface ReportCompany { id: number; name: string; address: string; phone: string; gstin: string; email: string }
+export interface ReportTransaction { id: number; partyId: number; partyName: string; regionId: number; regionName: string; transactionDate: string; description: string; notes: string; type: "CREDIT" | "DEBIT"; credit: number | null; debit: number | null; signedAmount: number; attachment: AttachmentDto | null }
+export interface StatementTransaction { id: number; transactionDate: string; description: string; notes: string; type: "CREDIT" | "DEBIT"; credit: number | null; debit: number | null; signedAmount: number; runningBalance: number; attachment: AttachmentDto | null }
+export interface PartyStatementDto { company: ReportCompany; party: { id: number; regionId: number; regionName: string; name: string; phone: string; address: string; gstin: string; notes: string }; from: string | null; to: string | null; limit: number | "ALL"; eligibleTransactionCount: number; displayedTransactionCount: number; openingBalance: number; totalCredit: number; totalDebit: number; netMovement: number; closingBalance: number; transactions: StatementTransaction[] }
+export interface DateRangeReportDto { company: ReportCompany; from: string | null; to: string | null; partyId: number | null; regionId: number | null; transactionCount: number; openingBalance: number; totalCredit: number; totalDebit: number; netMovement: number; closingBalance: number; transactions: ReportTransaction[] }
+export interface RegionReportDto { company: ReportCompany; regionId: number | null; from: string | null; to: string | null; regions: Array<{ id: number; name: string; partyCount: number; transactionCount: number; totalCredit: number; totalDebit: number; openingBalance: number; netMovement: number; closingBalance: number; netBalance: number; totalReceivable: number; totalPayable: number; parties: Array<{ id: number; name: string; transactionCount: number; totalCredit: number; totalDebit: number; openingBalance: number; netMovement: number; closingBalance: number; balance: number; receivable: number; payable: number }> }>; totals: { regionCount: number; partyCount: number; transactionCount: number; totalCredit: number; totalDebit: number; openingBalance: number; netMovement: number; closingBalance: number; netBalance: number; totalReceivable: number; totalPayable: number } }
+
+export const reportApi = {
+  partyStatement: (companyId: number, filters: { partyId: number; from?: string; to?: string; limit?: number | "ALL" }) => apiRequest<PartyStatementDto>(`/api/companies/${companyId}/reports/party-statement${queryString(filters)}`),
+  dateRange: (companyId: number, filters: { partyId?: number; regionId?: number; from?: string; to?: string }) => apiRequest<DateRangeReportDto>(`/api/companies/${companyId}/reports/date-range${queryString(filters)}`),
+  regions: (companyId: number, filters: { regionId?: number; from?: string; to?: string }) => apiRequest<RegionReportDto>(`/api/companies/${companyId}/reports/regions${queryString(filters)}`),
+};

@@ -75,7 +75,7 @@ function EditPartyModalContent({
     );
   }
 
-  function handleSubmit(
+  async function handleSubmit(
     event: FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
@@ -117,7 +117,7 @@ function EditPartyModalContent({
     }
 
     try {
-      updateParty(
+      await updateParty(
         party.id,
         {
           name:

@@ -11,9 +11,10 @@ export default function RegionOverview() {
     regions,
     parties,
     getPartyBalance,
+    dashboard,
   } = useLedger();
 
-  const regionData = regions.map(
+  const regionData = dashboard ? dashboard.regions.map((region) => ({ ...region, balance: region.net })) : regions.map(
     (region) => {
       const regionParties =
         parties.filter(

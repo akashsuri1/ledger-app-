@@ -1,7 +1,12 @@
 import {
   useMemo,
   useState,
+  useEffect,
 } from "react";
+import { reportApi } from "../../api/reportApi";
+import type { PartyStatementDto, DateRangeReportDto, RegionReportDto } from "../../api/reportApi";
+import { partyApi } from "../../api/partyApi";
+import { mapPartyDto } from "../../api/mappers";
 
 import {
   AlertTriangle,
@@ -49,6 +54,8 @@ import type {
   ReportOrientation,
   StatementPrintPreferences,
 } from "../../types/reports";
+import type { Party } from "../../types";
+import type { PartyStatementResult, DateRangeReportResult, RegionReportResult } from "../../utils/reportCalculations";
 
 import type {
   BusinessSettings,
@@ -146,6 +153,24 @@ function parsePositiveId(
     : undefined;
 }
 
+function range(from: string | null, to: string | null) {
+  return { from: from ?? undefined, to: to ?? undefined, isValid: true, issues: [] };
+}
+
+function transactionFromReport(value: { id:number;partyId?:number;transactionDate:string;description:string;notes:string;type:"CREDIT"|"DEBIT";credit:number|null;debit:number|null;attachment:{id:number;originalName:string;mimeType:string;byteSize:number}|null }, companyId:number, fallbackPartyId?:number) {
+  return { id:value.id, companyId, partyId:value.partyId ?? fallbackPartyId ?? 0, type:value.type, amount:value.credit ?? value.debit ?? 0, transactionDate:value.transactionDate, description:value.description, notes:value.notes, createdAt:value.transactionDate, attachmentName:value.attachment?.originalName, attachmentId:value.attachment?.id, attachmentMimeType:value.attachment?.mimeType, attachmentByteSize:value.attachment?.byteSize };
+}
+
+function statementResult(value: PartyStatementDto, companyId: number): PartyStatementResult {
+  return { partyId:value.party.id,dateRange:range(value.from,value.to),requestedLastN:typeof value.limit==="number"?value.limit:undefined,eligibleTransactionCount:value.eligibleTransactionCount,displayedTransactionCount:value.displayedTransactionCount,openingBalance:value.openingBalance,totalCredit:value.totalCredit,totalDebit:value.totalDebit,netMovement:value.netMovement,closingBalance:value.closingBalance,rows:value.transactions.map(item=>({transaction:transactionFromReport(item,companyId,value.party.id),credit:item.credit??0,debit:item.debit??0,signedAmount:item.signedAmount,runningBalance:item.runningBalance})),invalidTransactionIds:[],isValid:true,validationIssues:[] };
+}
+function dateResult(value: DateRangeReportDto, companyId: number): DateRangeReportResult {
+  return { dateRange:range(value.from,value.to),rows:value.transactions.map(item=>({transaction:transactionFromReport(item,companyId),credit:item.credit??0,debit:item.debit??0,signedAmount:item.signedAmount})),transactionCount:value.transactionCount,totalCredit:value.totalCredit,totalDebit:value.totalDebit,netMovement:value.netMovement,invalidTransactionIds:[],isValid:true,validationIssues:[] };
+}
+function regionResult(value: RegionReportDto, companyId: number, partyList: readonly Party[]): RegionReportResult {
+  return { regionId:value.regionId??undefined,dateRange:range(value.from,value.to),rows:value.regions.map(item=>({region:{id:item.id,companyId,name:item.name},partyCount:item.partyCount,transactionCount:item.transactionCount,totalCredit:item.totalCredit,totalDebit:item.totalDebit,openingBalance:item.openingBalance,netMovement:item.netMovement,closingBalance:item.closingBalance,netBalance:item.netBalance,totalReceivable:item.totalReceivable,totalPayable:item.totalPayable,parties:item.parties.map(entry=>({party:partyList.find(p=>p.id===entry.id)??{id:entry.id,companyId,regionId:item.id,name:entry.name,phone:"",address:"",gstin:"",notes:"",createdAt:""},transactionCount:entry.transactionCount,totalCredit:entry.totalCredit,totalDebit:entry.totalDebit,openingBalance:entry.openingBalance,netMovement:entry.netMovement,closingBalance:entry.closingBalance,balance:entry.balance,receivable:entry.receivable,payable:entry.payable}))})),totals:value.totals,invalidTransactionIds:[],isValid:true,validationIssues:[] };
+}
+
 function PreviewMessage({
   title,
   description,
@@ -194,10 +219,18 @@ export default function Reports() {
   ] = useSearchParams();
 
   const {
+    activeCompanyId,
     parties,
     regions,
     transactions,
   } = useLedger();
+
+  const [serverStatement, setServerStatement] = useState<{ key: string; value: PartyStatementResult }>();
+  const [serverDateRange, setServerDateRange] = useState<{ key: string; value: DateRangeReportResult }>();
+  const [serverRegions, setServerRegions] = useState<{ key: string; value: RegionReportResult }>();
+  const [serverError, setServerError] = useState<{ key: string; message: string }>();
+  const [remoteParty, setRemoteParty] = useState<{ key: string; value: Party }>();
+  const [remotePartyError, setRemotePartyError] = useState<{ key: string; message: string }>();
 
   const { settings } =
     useSettings();
@@ -318,7 +351,7 @@ export default function Reports() {
       partyQuery,
     );
 
-  const selectedParty =
+  const cachedSelectedParty =
     partyId === undefined
       ? undefined
       : parties.find(
@@ -326,12 +359,34 @@ export default function Reports() {
             party.id === partyId,
         );
 
+  const partyLookupKey = `${activeCompanyId}:${partyId ?? "none"}`;
+
+  useEffect(() => {
+    if (partyId === undefined || cachedSelectedParty) return;
+    const controller = new AbortController();
+    partyApi.get(activeCompanyId, partyId, controller.signal)
+      .then((value) => {
+        if (!controller.signal.aborted) {
+          setRemoteParty({ key: partyLookupKey, value: mapPartyDto(value) });
+          setRemotePartyError(undefined);
+        }
+      })
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted) setRemotePartyError({ key: partyLookupKey, message: cause instanceof Error ? cause.message : "That party is unavailable." });
+      });
+    return () => controller.abort();
+  }, [activeCompanyId, cachedSelectedParty, partyId, partyLookupKey]);
+
+  const selectedParty = cachedSelectedParty ?? (remoteParty?.key === partyLookupKey ? remoteParty.value : undefined);
+
   const partyQueryError =
     partyQuery !== null &&
     !selectedParty
       ? partyId === undefined
         ? "The party query parameter is invalid. Select a party to continue."
-        : "That party no longer exists. Select another party to prepare a statement."
+        : remotePartyError?.key === partyLookupKey
+          ? remotePartyError.message
+          : undefined
       : undefined;
 
   const regionQuery =
@@ -491,7 +546,24 @@ export default function Reports() {
       [fromDate, toDate],
     );
 
-  const statement =
+  const statementKey = `${activeCompanyId}:${selectedParty?.id ?? "none"}:${fromDate}:${toDate}:${effectivePreferences.transactionLimit}`;
+  const regionReportKey = `${activeCompanyId}:${selectedRegion?.id ?? "all"}:${fromDate}:${toDate}`;
+  const dateRangeReportKey = `${activeCompanyId}:${selectedDateRangeRegion?.id ?? "all"}:${selectedDateRangeParty?.id ?? "all"}:${fromDate}:${toDate}`;
+  const activeReportKey = reportType === "PARTY" ? statementKey : reportType === "REGION" ? regionReportKey : dateRangeReportKey;
+
+  useEffect(() => {
+    let current = true;
+    if (reportType === "PARTY" && selectedParty) {
+      void reportApi.partyStatement(activeCompanyId, { partyId:selectedParty.id, from:fromDate||undefined, to:toDate||undefined, limit:effectivePreferences.transactionLimit }).then(value=>{if(current){setServerStatement({key:statementKey,value:statementResult(value,activeCompanyId)});setServerError(undefined)}}).catch(cause=>{if(current)setServerError({key:statementKey,message:cause instanceof Error?cause.message:"Unable to load the statement."})});
+    } else if (reportType === "REGION") {
+      void reportApi.regions(activeCompanyId, { regionId:selectedRegion?.id, from:fromDate||undefined, to:toDate||undefined }).then(value=>{if(current){setServerRegions({key:regionReportKey,value:regionResult(value,activeCompanyId,parties)});setServerError(undefined)}}).catch(cause=>{if(current)setServerError({key:regionReportKey,message:cause instanceof Error?cause.message:"Unable to load the region report."})});
+    } else if (reportType === "DATE_RANGE") {
+      void reportApi.dateRange(activeCompanyId, { regionId:selectedDateRangeRegion?.id, partyId:selectedDateRangeParty?.id, from:fromDate||undefined, to:toDate||undefined }).then(value=>{if(current){setServerDateRange({key:dateRangeReportKey,value:dateResult(value,activeCompanyId)});setServerError(undefined)}}).catch(cause=>{if(current)setServerError({key:dateRangeReportKey,message:cause instanceof Error?cause.message:"Unable to load the date-range report."})});
+    }
+    return () => { current=false; };
+  }, [activeCompanyId, dateRangeReportKey, effectivePreferences.transactionLimit, fromDate, parties, regionReportKey, reportType, selectedDateRangeParty?.id, selectedDateRangeRegion?.id, selectedParty, selectedRegion?.id, statementKey, toDate]);
+
+  const calculatedStatement =
     useMemo(
       () =>
         selectedParty
@@ -512,8 +584,9 @@ export default function Reports() {
         effectivePreferences.transactionLimit,
       ],
     );
+  const statement = serverStatement?.key === statementKey ? serverStatement.value : calculatedStatement;
 
-  const regionReport =
+  const calculatedRegionReport =
     useMemo(
       () =>
         calculateRegionReport({
@@ -537,8 +610,9 @@ export default function Reports() {
         toDate,
       ],
     );
+  const regionReport = serverRegions?.key === regionReportKey ? serverRegions.value : calculatedRegionReport;
 
-  const dateRangeReport =
+  const calculatedDateRangeReport =
     useMemo(
       () =>
         calculateDateRangeReport({
@@ -557,6 +631,7 @@ export default function Reports() {
         toDate,
       ],
     );
+  const dateRangeReport = serverDateRange?.key === dateRangeReportKey ? serverDateRange.value : calculatedDateRangeReport;
 
   const selectedPartyRegion =
     selectedParty
@@ -568,6 +643,7 @@ export default function Reports() {
       : undefined;
 
   const validationMessages = [
+    serverError?.key === activeReportKey ? serverError.message : undefined,
     ...(reportType === "PARTY"
       ? []
       : dateValidation.issues.map(

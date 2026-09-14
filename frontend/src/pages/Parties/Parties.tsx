@@ -1,6 +1,7 @@
 import {
   useMemo,
   useState,
+  useEffect,
 } from "react";
 
 import {
@@ -35,6 +36,8 @@ import {
   formatCurrency,
 } from "../../utils/currency";
 import { paginateItems } from "../../utils/pagination";
+import { partyApi } from "../../api/partyApi";
+import type { PageMeta, PartyDto } from "../../api/types";
 
 export default function Parties() {
   const navigate =
@@ -47,11 +50,13 @@ export default function Parties() {
 
   const {
     parties,
+    activeCompanyId,
     regions,
     transactions,
     deleteParty,
     getPartyBalance,
     getRegionById,
+    canWrite,
   } = useLedger();
 
   const [
@@ -61,6 +66,7 @@ export default function Parties() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [serverPage, setServerPage] = useState<{ key:string; data:PartyDto[]; meta:PageMeta } | null>(null);
 
   const [
     addPartyOpen,
@@ -95,6 +101,9 @@ export default function Parties() {
     searchParams.get(
       "region",
     ) ?? "ALL";
+
+  const requestKey = `${activeCompanyId}|${search}|${selectedRegion}|${currentPage}|${pageSize}`;
+  useEffect(()=>{const controller=new AbortController();const timer=window.setTimeout(()=>{void partyApi.list(activeCompanyId,{search:search.trim()||undefined,regionId:selectedRegion==="ALL"?undefined:Number(selectedRegion),page:currentPage,pageSize},controller.signal).then(result=>setServerPage({key:requestKey,...result})).catch(cause=>{if(!(cause instanceof DOMException&&cause.name==="AbortError"))toast.error(cause instanceof Error?cause.message:"Unable to load parties.")})},250);return()=>{window.clearTimeout(timer);controller.abort()}},[activeCompanyId,currentPage,pageSize,requestKey,search,selectedRegion]);
 
   function changeRegionFilter(
     value: string,
@@ -187,11 +196,12 @@ export default function Parties() {
     currentPage,
     pageSize,
   );
-  const paginatedParties = pagination.items;
-  const visiblePage = pagination.page;
-  const totalPages = pagination.totalPages;
-  const firstVisible = pagination.firstVisible;
-  const lastVisible = pagination.lastVisible;
+  const activeServerPage=serverPage?.key===requestKey?serverPage:null;
+  const paginatedParties = activeServerPage ? activeServerPage.data.map(party=>({id:party.id,companyId:party.companyId,regionId:party.regionId,regionName:party.regionName,name:party.name,phone:party.phone,address:party.address,gstin:party.gstin,notes:party.notes,createdAt:party.createdAt,balance:party.balance,transactionCount:party.transactionCount})) : pagination.items;
+  const visiblePage = activeServerPage?.meta.page ?? pagination.page;
+  const totalPages = activeServerPage?.meta.totalPages ?? pagination.totalPages;
+  const firstVisible = activeServerPage ? (activeServerPage.meta.total===0?0:(visiblePage-1)*pageSize+1) : pagination.firstVisible;
+  const lastVisible = activeServerPage ? Math.min(visiblePage*pageSize,activeServerPage.meta.total) : pagination.lastVisible;
 
   const receivableParties =
     parties.filter(
@@ -228,7 +238,7 @@ export default function Parties() {
             deletePartyId,
         ).length;
 
-  function handleDeleteParty() {
+  async function handleDeleteParty() {
     if (
       deletePartyId ===
       null
@@ -237,7 +247,7 @@ export default function Parties() {
     }
 
     try {
-      deleteParty(
+      await deleteParty(
         deletePartyId,
       );
 
@@ -279,7 +289,7 @@ export default function Parties() {
             </p>
           </div>
 
-          <button
+          {canWrite && <button
             onClick={() =>
               setAddPartyOpen(
                 true,
@@ -290,7 +300,7 @@ export default function Parties() {
             <Plus size={17} />
 
             Add Party
-          </button>
+          </button>}
         </div>
 
         {/* SUMMARY */}
@@ -528,7 +538,7 @@ export default function Parties() {
 
                           <td className="px-5 py-4">
                             <div className="flex items-center justify-end gap-1">
-                              <button
+                              {canWrite && <button
                                 type="button"
                                 title="Edit party"
                                 onClick={(event) => {
@@ -543,9 +553,9 @@ export default function Parties() {
                                 <Pencil
                                   size={16}
                                 />
-                              </button>
+                              </button>}
 
-                              <button
+                              {canWrite && <button
                                 type="button"
                                 title="Delete party"
                                 onClick={(event) => {
@@ -560,7 +570,7 @@ export default function Parties() {
                                 <Trash2
                                   size={16}
                                 />
-                              </button>
+                              </button>}
 
                               <ChevronRight
                                 size={17}

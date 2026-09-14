@@ -18,10 +18,7 @@ import RegionOverview from "../../components/dashboard/RegionOverview";
 import RecentTransactions from "../../components/dashboard/RecentTransactions";
 import AddPartyModal from "../../components/parties/AddPartyModal";
 
-import {
-  formatCurrency,
-  roundCurrency,
-} from "../../utils/currency";
+import { formatCurrency } from "../../utils/currency";
 
 import { useLedger } from "../../hooks/useLedger";
 
@@ -31,76 +28,13 @@ export default function Dashboard() {
   const { openTransactionModal } = useTransactionModal();
 
   const {
-    parties,
-    transactions,
+    dashboard,
   } = useLedger();
 
   const [addPartyOpen, setAddPartyOpen] =
     useState(false);
 
-  const dashboardStats =
-    useMemo(() => {
-      const balances =
-        new Map<number, number>();
-
-      transactions.forEach(
-        (transaction) => {
-          const current =
-            balances.get(
-              transaction.partyId,
-            ) ?? 0;
-
-          balances.set(
-            transaction.partyId,
-            roundCurrency(
-              transaction.type ===
-                "CREDIT"
-                ? current +
-                    transaction.amount
-                : current -
-                    transaction.amount,
-            ),
-          );
-        },
-      );
-
-      let receivable = 0;
-      let payable = 0;
-
-      parties.forEach((party) => {
-        const balance =
-          balances.get(
-            party.id,
-          ) ?? 0;
-
-        if (balance > 0) {
-          receivable =
-            roundCurrency(
-              receivable +
-                balance,
-            );
-        } else if (balance < 0) {
-          payable = roundCurrency(
-            payable +
-              Math.abs(balance),
-          );
-        }
-      });
-
-      return {
-        receivable,
-        payable,
-        netBalance:
-          roundCurrency(
-            receivable - payable,
-          ),
-        totalParties:
-          parties.length,
-      };
-    }, [
-      parties,
-      transactions,
-    ]);
+  const dashboardStats = useMemo(() => ({ receivable: dashboard?.totalReceivable ?? 0, payable: dashboard?.totalPayable ?? 0, netBalance: dashboard?.netBalance ?? 0, totalParties: dashboard?.partyCount ?? 0 }), [dashboard]);
 
   return (
     <div className="mx-auto max-w-[1600px]">
@@ -121,7 +55,7 @@ export default function Dashboard() {
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-500 shadow-sm">
-          All data stored locally
+          Connected to LedgerFlow server
         </div>
       </div>
 
@@ -196,11 +130,11 @@ export default function Dashboard() {
 
             <div>
               <p className="text-sm font-medium text-slate-900">
-                Local Database
+                Server Database
               </p>
 
               <p className="text-xs text-slate-500">
-                SQLite integration planned
+                Spring Boot and SQLite connected
               </p>
             </div>
           </div>

@@ -7,12 +7,14 @@ import {
   Settings,
   Users,
   WalletCards,
+  LogOut,
 } from "lucide-react";
 
 import { NavLink } from "react-router-dom";
 
 import CompanySwitcher from "../companies/CompanySwitcher";
 import { useLedger } from "../../hooks/useLedger";
+import { useAuth } from "../../hooks/useAuth";
 
 const menuItems = [
   {
@@ -46,7 +48,9 @@ export default function Sidebar() {
   const {
     storageError,
     isPersisted,
+    isOwner,
   } = useLedger();
+  const { logout } = useAuth();
 
   const storageHealthy =
     isPersisted && !storageError;
@@ -106,13 +110,13 @@ export default function Sidebar() {
       <div className="shrink-0 border-t border-slate-800 p-4">
         <div className="space-y-1">
 
-          <NavLink
+          {isOwner && <NavLink
             to="/backup"
             className={navStyle}
           >
             <DatabaseBackup size={19} />
             Backup & Restore
-          </NavLink>
+          </NavLink>}
 
           <NavLink
             to="/settings"
@@ -121,6 +125,8 @@ export default function Sidebar() {
             <Settings size={19} />
             Settings
           </NavLink>
+
+          <button type="button" onClick={() => void logout()} className={`${navStyle({ isActive: false })} w-full`}><LogOut size={19}/>Sign out</button>
 
         </div>
 
@@ -142,7 +148,7 @@ export default function Sidebar() {
 
             <p className="text-xs font-medium text-slate-300">
               {storageHealthy
-                ? "Saved locally"
+                ? "Server connected"
                 : storageError
                   ? "Storage issue"
                   : "Not saved yet"}
@@ -151,10 +157,10 @@ export default function Sidebar() {
 
           <p className="mt-1.5 text-xs leading-5 text-slate-500">
             {storageHealthy
-              ? "Ledger data is saved on this device"
+              ? "Ledger data is persisted by the backend"
               : storageError
                 ? "Changes may not survive a refresh"
-                : "Waiting for local storage"}
+                : "Waiting for the backend"}
           </p>
 
         </div>

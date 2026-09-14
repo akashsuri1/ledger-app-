@@ -5,6 +5,7 @@ import Header from "./Header";
 
 import { TransactionModalProvider } from "../../context/TransactionModalContext";
 import { useLedger } from "../../hooks/useLedger";
+import LegacyMigrationBanner from "../legacy/LegacyMigrationBanner";
 
 export default function AppLayout() {
   const { activeCompanyId } = useLedger();
@@ -16,6 +17,7 @@ export default function AppLayout() {
 
         <div className="min-w-0 flex-1">
           <Header />
+          <LegacyMigrationBanner />
 
           <main className="min-h-[calc(100vh-5rem)] p-6 lg:p-8">
             <Outlet />

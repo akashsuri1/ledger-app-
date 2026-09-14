@@ -34,7 +34,7 @@ export default function CompanyFormModal({
   const [submitting, setSubmitting] = useState(false);
   const isEditing = Boolean(company);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const cleanName = cleanCompanyName(name);
@@ -72,7 +72,7 @@ export default function CompanyFormModal({
     try {
       if (company) {
         const update: UpdateCompany = { ...input };
-        updateCompany(company.id, update);
+        await updateCompany(company.id, update);
 
         const updatedCompany: Company = {
           ...company,
@@ -84,7 +84,7 @@ export default function CompanyFormModal({
         });
         onSaved?.(updatedCompany, "edit");
       } else {
-        const createdCompany = createCompany(input);
+        const createdCompany = await createCompany(input);
         toast.success("Company created", {
           description: `${createdCompany.name} is now the active company.`,
         });

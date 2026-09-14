@@ -15,12 +15,11 @@ import type {
   SettingsSaveResult,
 } from "../utils/settingsStorage";
 
-export type SettingsMutation = () =>
-  SettingsSaveResult;
+export type SettingsMutation = () => Promise<SettingsSaveResult>;
 
 export type SettingsPatchMutation = (
   patch: AppSettingsPatch,
-) => SettingsSaveResult;
+) => Promise<SettingsSaveResult>;
 
 export interface SettingsContextValue {
   settings: AppSettings;
@@ -30,13 +29,13 @@ export interface SettingsContextValue {
   updateSettings: SettingsPatchMutation;
   updateBusinessSettings: (
     patch: Partial<BusinessSettings>,
-  ) => SettingsSaveResult;
+  ) => Promise<SettingsSaveResult>;
   updatePrintSettings: (
     patch: Partial<PrintSettings>,
-  ) => SettingsSaveResult;
+  ) => Promise<SettingsSaveResult>;
   updateAppearanceSettings: (
     patch: Partial<AppearanceSettings>,
-  ) => SettingsSaveResult;
+  ) => Promise<SettingsSaveResult>;
   resetBusinessSettings: SettingsMutation;
   resetPrintSettings: SettingsMutation;
   resetAppearanceSettings: SettingsMutation;
