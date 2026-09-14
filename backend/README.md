@@ -1,9 +1,10 @@
 # LedgerFlow backend
 
 This directory contains the Spring Boot API and SQLite persistence service.
-Milestones 1 through 5 provide the schema, authentication, company authorization,
+Milestones 1 through 6 provide the schema, authentication, company authorization,
 ledger CRUD, dashboard summaries, company settings, financial reports, and private
-Transaction attachment storage.
+Transaction attachment storage, plus encrypted Company backup, safe restore, and
+legacy browser workspace import.
 
 ## Requirements
 
@@ -154,6 +155,77 @@ dashboard, and report DTOs include nullable `attachment` metadata containing
 `id`, `originalName`, `mimeType`, and `byteSize`; storage keys are private.
 Deleting a Transaction or Party deletes attachment metadata in the same database
 transaction and removes committed files after the transaction succeeds.
+
+## Encrypted backup, restore, and legacy import
+
+Milestone 6 adds these owner-authorized operations:
+
+```text
+POST /api/companies/{companyId}/backup
+POST /api/backups/restore/preview
+POST /api/backups/restore/commit
+POST /api/import/legacy/preview
+POST /api/import/legacy/commit
+```
+
+Company backup accepts JSON containing `passphrase` and downloads a versioned
+`.lfbak` file. Restore preview and commit accept multipart form data containing
+`file` and `passphrase`; commit optionally accepts `companyName`. Preview is
+stateless and never changes the database or filesystem, so commit uploads and
+validates the encrypted file again. The implemented restore mode is
+`RESTORE_AS_NEW`: it remaps every Region, Party, and Transaction ID, assigns the
+authenticated user as OWNER, and leaves existing Companies unchanged. Destructive
+replacement and its pre-restore recovery snapshot are deferred.
+
+The encrypted payload is a ZIP archive containing `manifest.json`, `company.json`,
+and actual attachment bytes beneath `attachments/`. The manifest format version is
+1 and records SHA-256 entry digests. The complete ZIP is protected with
+AES-256-GCM. Its key is derived with PBKDF2-HMAC-SHA256 using 310,000 iterations and
+a new random 32-byte salt; every file also gets a separate random 12-byte GCM
+nonce. The versioned binary header is authenticated as GCM additional data. The
+Argon2id preference was not used because JDK 23 provides PBKDF2 and AES-GCM without
+adding a native or third-party crypto provider.
+
+Only a Company OWNER may export it. A user who owns at least one accessible
+Company may restore/import; a new user with no memberships may also import their
+first Company. Users whose active memberships are only ADMIN, ACCOUNTANT, or
+VIEWER are denied. Backup construction holds a short Company lock and a SQLite
+transactional snapshot; attachment upload and cascade deletion use the same lock.
+Restore validates and decrypts everything before mutation, then creates all rows
+in one database transaction. Attachment writes use bounded temporary files and
+atomic moves. A failed database transaction deletes any files already written as
+compensation.
+
+Archive processing rejects unsupported versions, missing or mismatched entries,
+bad hashes, unsafe/absolute/drive-letter paths, duplicate names, entry floods, and
+excessive decompressed data. Attachments are rechecked for size, digest, extension,
+MIME type, and PDF/PNG/JPEG signature. Default configurable limits are:
+
+```text
+LEDGERFLOW_BACKUP_MAX_ENCRYPTED_SIZE=256MB
+LEDGERFLOW_BACKUP_MAX_UNCOMPRESSED_SIZE=512MB
+LEDGERFLOW_BACKUP_MAX_ENTRIES=10000
+LEDGERFLOW_BACKUP_MAX_ATTACHMENTS=5000
+LEDGERFLOW_BACKUP_PBKDF2_ITERATIONS=310000
+LEDGERFLOW_ATTACHMENT_MAX_SIZE=10MB
+```
+
+Legacy import accepts the exact version-1 JSON workspace/envelope produced by the
+current frontend. It validates normalized duplicates, relationships, settings,
+positive whole-rupee amounts, and dates before creating new owned Companies.
+Legacy date-time strings are reduced to their recorded `YYYY-MM-DD` portion with a
+warning. The old browser format stored only `attachmentName`; import preserves the
+Transaction, returns a warning, and creates no attachment row because the bytes do
+not exist.
+
+Backup passphrases are never persisted or included in audit metadata and request
+debug logging renders them as `[REDACTED]`. If a passphrase is forgotten, the
+backup cannot be recovered; LedgerFlow has no master key or recovery backdoor.
+Run the packaged-JAR smoke after `package` with:
+
+```powershell
+./scripts/backup-restore-smoke.ps1
+```
 
 `PasswordResetNotifier` is the delivery boundary. The default implementation
 records only that a request occurred and does not expose the token. Replace it

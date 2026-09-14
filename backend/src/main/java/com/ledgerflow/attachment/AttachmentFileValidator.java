@@ -2,6 +2,7 @@ package com.ledgerflow.attachment;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ByteArrayInputStream;
 import java.util.Locale;
 import java.util.Map;
 
@@ -24,22 +25,31 @@ public class AttachmentFileValidator {
 
     public ValidatedFile validate(MultipartFile file) {
         if (file == null || file.isEmpty()) throw invalidContent("The attachment is empty.");
+        return validate(file.getOriginalFilename(), file.getContentType(), file.getSize(), file::getInputStream);
+    }
+
+    public ValidatedFile validate(String originalName, String mimeType, byte[] bytes) {
+        if (bytes == null || bytes.length == 0) throw invalidContent("The attachment is empty.");
+        return validate(originalName, mimeType, bytes.length, () -> new ByteArrayInputStream(bytes));
+    }
+
+    private ValidatedFile validate(String rawName, String rawMime, long size, InputSupplier supplier) {
         long maximum = properties.getMaxSize().toBytes();
-        if (file.getSize() > maximum) {
+        if (size > maximum) {
             throw new ApiException(HttpStatus.PAYLOAD_TOO_LARGE, "ATTACHMENT_TOO_LARGE",
                     "The attachment exceeds the configured size limit.");
         }
-        String originalName = safeBaseName(file.getOriginalFilename());
+        String originalName = safeBaseName(rawName);
         int dot = originalName.lastIndexOf('.');
         if (dot <= 0 || dot == originalName.length() - 1) throw typeNotAllowed();
         String extension = originalName.substring(dot + 1).toLowerCase(Locale.ROOT);
         String expectedMime = MIME_TYPES.get(extension);
         if (expectedMime == null) throw typeNotAllowed();
-        String suppliedMime = file.getContentType() == null ? "" : file.getContentType().trim().toLowerCase(Locale.ROOT);
+        String suppliedMime = rawMime == null ? "" : rawMime.trim().toLowerCase(Locale.ROOT);
         if (!expectedMime.equals(suppliedMime)) throw typeNotAllowed();
         byte[] header = new byte[8];
         int read = 0;
-        try (InputStream input = file.getInputStream()) {
+        try (InputStream input = supplier.open()) {
             while (read < header.length) {
                 int count = input.read(header, read, header.length - read);
                 if (count < 0) break;
@@ -90,4 +100,5 @@ public class AttachmentFileValidator {
     }
 
     public record ValidatedFile(String originalName, String extension, String mimeType, long maxBytes) {}
+    @FunctionalInterface private interface InputSupplier { InputStream open() throws IOException; }
 }

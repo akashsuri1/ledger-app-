@@ -45,4 +45,27 @@ public class MembershipRepository {
                 """, Integer.class, companyId);
         return count == null ? 0 : count;
     }
+
+    public int countActiveMembershipsForUser(long userId) {
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM company_memberships WHERE user_id=? AND status='ACTIVE'",
+                Integer.class, userId);
+        return count == null ? 0 : count;
+    }
+
+    public int countOwnedCompanies(long userId) {
+        Integer count = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM company_memberships
+                WHERE user_id=? AND status='ACTIVE' AND role='OWNER'
+                """, Integer.class, userId);
+        return count == null ? 0 : count;
+    }
+
+    public int countActiveMemberships(long userId) {
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM company_memberships WHERE user_id=? AND status='ACTIVE'",
+                Integer.class, userId);
+        return count == null ? 0 : count;
+    }
+
 }

@@ -3,6 +3,7 @@ package com.ledgerflow.web;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -59,10 +60,12 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
-    ResponseEntity<ApiErrorEnvelope> uploadTooLarge() {
+    ResponseEntity<ApiErrorEnvelope> uploadTooLarge(HttpServletRequest request) {
+        boolean backup = request.getRequestURI().contains("/backups/restore/");
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
-                .body(ApiErrorEnvelope.of("ATTACHMENT_TOO_LARGE",
-                        "The attachment exceeds the configured size limit."));
+                .body(ApiErrorEnvelope.of(backup ? "BACKUP_TOO_LARGE" : "ATTACHMENT_TOO_LARGE",
+                        backup ? "The backup exceeds the configured size limit."
+                                : "The attachment exceeds the configured size limit."));
     }
 
     @ExceptionHandler(Exception.class)

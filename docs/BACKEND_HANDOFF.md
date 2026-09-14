@@ -11,7 +11,10 @@ provides Company, Region, Party, and Transaction CRUD with server-side search,
 filters, pagination, roles, and company isolation. Milestone 4 provides Dashboard,
 Company Settings, Party Statement, Date Range, and Region Report APIs. Milestone 5
 provides private filesystem-backed Transaction attachment upload, replacement,
-download, deletion, and cascade cleanup. Frontend API integration has not started.
+download, deletion, and cascade cleanup. Milestone 6 provides encrypted logical
+Company backups, stateless restore preview, safe restore-as-new, real attachment
+round trips, and preview/commit import for the frontend's legacy LocalStorage
+workspace. Frontend API integration has not started.
 
 The frontend already supports:
 
@@ -387,17 +390,28 @@ by the existing balance chart.
 ### Backup and migration
 
 ```http
-GET  /api/export
-GET  /api/companies/:companyId/export
-POST /api/import/preview
-POST /api/import/commit
+POST /api/companies/:companyId/backup
+POST /api/backups/restore/preview
+POST /api/backups/restore/commit
+POST /api/import/legacy/preview
+POST /api/import/legacy/commit
 ```
 
-The current backup is a full multi-company workspace. A backend import must verify
-ownership, all foreign-key relationships, duplicate IDs, valid calendar dates,
-supported enum/settings values, and backup version before writing. Preview first,
-then commit atomically. Never allow imported `companyId` values to bypass current
-user authorization.
+The backend backup is a logical, encrypted Company backup and includes Company
+details, all Company Settings, Regions, Parties, whole-rupee date-only
+Transactions, attachment metadata, and real attachment bytes. It does not contain
+users, password/session/reset hashes, memberships, unrelated Companies, or audit
+internals. Company backup is OWNER-only. Restore uses `RESTORE_AS_NEW`, reports
+accessible-name conflicts during preview, remaps all IDs, and makes the current
+user OWNER. Preview and commit both receive and independently validate the
+encrypted `.lfbak`; no decrypted server-side restore session is retained.
+
+The separate legacy endpoints accept the exact version-1 browser workspace JSON.
+They validate ownership policy, all relationships, normalized duplicates, calendar
+dates, whole integer amounts, settings, and IDs before one atomic import. Imported
+`companyId` values are reference data only and can never select an existing server
+Company. Old `attachmentName` values produce warnings and no attachment metadata,
+because LocalStorage never held the file bytes.
 
 For existing browser users, provide a one-time “Move local data to account” flow.
 The frontend can read its current LocalStorage workspace, upload it for preview,
@@ -418,6 +432,9 @@ successful import.
 8. Wire the existing attachment inputs to the Milestone 5 multipart and download APIs.
 9. Add the local-data import flow before removing legacy LocalStorage support.
 10. Display membership role on `/select-company` once the bootstrap API supplies it.
+11. Connect the existing backup UI to `.lfbak` download, restore preview, and
+    restore-as-new commit; clearly warn that forgotten backup passphrases cannot be
+    recovered.
 
 The frontend currently expects numeric IDs. If the backend chooses UUIDs, update
 all entity IDs, route parsing, filters, backup validation, and context method

@@ -6,6 +6,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
 import com.ledgerflow.auth.SecurityAuditRepository;
+import com.ledgerflow.backup.CompanyOperationLock;
 import com.ledgerflow.membership.CompanyAccessService;
 import com.ledgerflow.membership.MembershipRole;
 import com.ledgerflow.security.AuthenticatedUser;
@@ -31,12 +32,13 @@ public class AttachmentService {
     private final AttachmentFileValidator validator;
     private final SecurityAuditRepository audit;
     private final TransactionTemplate transactionTemplate;
+    private final CompanyOperationLock companyLocks;
     private final ConcurrentHashMap<String, ReentrantLock> locks = new ConcurrentHashMap<>();
 
     public AttachmentService(CompanyAccessService access, TransactionRepository transactions,
                              AttachmentRepository attachments, AttachmentStorage storage,
                              AttachmentFileValidator validator, SecurityAuditRepository audit,
-                             TransactionTemplate transactionTemplate) {
+                             TransactionTemplate transactionTemplate, CompanyOperationLock companyLocks) {
         this.access = access;
         this.transactions = transactions;
         this.attachments = attachments;
@@ -44,10 +46,16 @@ public class AttachmentService {
         this.validator = validator;
         this.audit = audit;
         this.transactionTemplate = transactionTemplate;
+        this.companyLocks = companyLocks;
     }
 
     public AttachmentView upload(AuthenticatedUser user, long companyId, long transactionId, MultipartFile file) {
         access.requireRole(user.userId(), companyId, WRITERS);
+        return companyLocks.withLock(companyId, () -> uploadLocked(user, companyId, transactionId, file));
+    }
+
+    private AttachmentView uploadLocked(AuthenticatedUser user, long companyId, long transactionId,
+                                        MultipartFile file) {
         requireTransaction(companyId, transactionId);
         var valid = validator.validate(file);
         AttachmentStorage.StoredFile stored;
@@ -102,6 +110,10 @@ public class AttachmentService {
 
     public void delete(AuthenticatedUser user, long companyId, long transactionId) {
         access.requireRole(user.userId(), companyId, WRITERS);
+        companyLocks.withLock(companyId, () -> deleteLocked(user, companyId, transactionId));
+    }
+
+    private void deleteLocked(AuthenticatedUser user, long companyId, long transactionId) {
         requireTransaction(companyId, transactionId);
         ReentrantLock lock = locks.computeIfAbsent(companyId + ":" + transactionId, ignored -> new ReentrantLock());
         lock.lock();

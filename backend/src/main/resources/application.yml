@@ -13,8 +13,8 @@ spring:
       mode: never
   servlet:
     multipart:
-      max-file-size: ${LEDGERFLOW_ATTACHMENT_MAX_SIZE:10MB}
-      max-request-size: ${LEDGERFLOW_ATTACHMENT_REQUEST_MAX_SIZE:11MB}
+      max-file-size: ${LEDGERFLOW_MULTIPART_MAX_SIZE:256MB}
+      max-request-size: ${LEDGERFLOW_MULTIPART_REQUEST_MAX_SIZE:257MB}
 
 ledgerflow:
   data-dir: ${LEDGERFLOW_DATA_DIR:${user.home}/.ledgerflow/data}
@@ -31,3 +31,9 @@ ledgerflow:
     auth-rate-window: 1m
   attachments:
     max-size: ${LEDGERFLOW_ATTACHMENT_MAX_SIZE:10MB}
+  backups:
+    max-encrypted-size: ${LEDGERFLOW_BACKUP_MAX_ENCRYPTED_SIZE:256MB}
+    max-uncompressed-size: ${LEDGERFLOW_BACKUP_MAX_UNCOMPRESSED_SIZE:512MB}
+    max-entries: ${LEDGERFLOW_BACKUP_MAX_ENTRIES:10000}
+    max-attachments: ${LEDGERFLOW_BACKUP_MAX_ATTACHMENTS:5000}
+    pbkdf2-iterations: ${LEDGERFLOW_BACKUP_PBKDF2_ITERATIONS:310000}

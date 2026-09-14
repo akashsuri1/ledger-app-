@@ -3,6 +3,7 @@ package com.ledgerflow.party;
 import com.ledgerflow.attachment.AttachmentCleanupService;
 import com.ledgerflow.attachment.AttachmentRepository;
 import com.ledgerflow.auth.SecurityAuditRepository;
+import com.ledgerflow.backup.CompanyOperationLock;
 import com.ledgerflow.common.InputValidator;
 import com.ledgerflow.common.TextNormalizer;
 import com.ledgerflow.membership.CompanyAccessService;
@@ -28,13 +29,16 @@ public class PartyService {
     private final SecurityAuditRepository audit;
     private final AttachmentRepository attachments;
     private final AttachmentCleanupService attachmentCleanup;
+    private final CompanyOperationLock companyLocks;
 
     public PartyService(PartyRepository parties, RegionRepository regions, CompanyAccessService access,
                         InputValidator validator, SecurityAuditRepository audit,
-                        AttachmentRepository attachments, AttachmentCleanupService attachmentCleanup) {
+                        AttachmentRepository attachments, AttachmentCleanupService attachmentCleanup,
+                        CompanyOperationLock companyLocks) {
         this.parties = parties; this.regions = regions; this.access = access;
         this.validator = validator; this.audit = audit;
         this.attachments = attachments; this.attachmentCleanup = attachmentCleanup;
+        this.companyLocks = companyLocks;
     }
 
     public record PartyView(long id, long companyId, long regionId, String regionName, String name,
@@ -109,6 +113,7 @@ public class PartyService {
     @Transactional
     public void delete(AuthenticatedUser user, long companyId, long partyId) {
         access.requireRole(user.userId(), companyId, WRITERS);
+        companyLocks.lockUntilTransactionComplete(companyId);
         require(companyId, partyId);
         var files = attachments.findForParty(companyId, partyId);
         attachmentCleanup.afterCommit(files);
