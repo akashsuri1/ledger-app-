@@ -50,7 +50,7 @@ public class BackupSnapshotRepository {
         Map<String, byte[]> files = new LinkedHashMap<>();
         List<TransactionData> transactions = jdbc.query("""
                 SELECT t.id,t.party_id,t.type,t.amount,t.transaction_date,t.description,t.notes,
-                       a.storage_key,a.original_name,a.mime_type,a.byte_size
+                       a.storage_key,a.original_name,a.mime_type,a.byte_size,a.sha256
                 FROM transactions t LEFT JOIN transaction_attachments a
                   ON a.transaction_id=t.id AND a.company_id=t.company_id
                 WHERE t.company_id=? ORDER BY t.id
@@ -63,9 +63,15 @@ public class BackupSnapshotRepository {
                         long expectedSize = rs.getLong("byte_size");
                         if (bytes.length != expectedSize) throw new ApiException(HttpStatus.CONFLICT,
                                 "BACKUP_ATTACHMENT_INVALID", "An attachment size does not match its metadata.");
+                        String sha256 = BackupArchive.sha256(bytes);
+                        String expectedSha256 = rs.getString("sha256");
+                        if (expectedSha256 != null && !sha256.equals(expectedSha256)) {
+                            throw new ApiException(HttpStatus.CONFLICT, "BACKUP_ATTACHMENT_INVALID",
+                                    "An attachment checksum does not match its metadata.");
+                        }
                         files.put(entry, bytes);
                         attachment = new AttachmentData(rs.getString("original_name"), rs.getString("mime_type"),
-                                expectedSize, BackupArchive.sha256(bytes), entry);
+                                expectedSize, sha256, entry);
                     }
                     return new TransactionData(rs.getLong("id"), rs.getLong("party_id"), rs.getString("type"),
                             rs.getLong("amount"), rs.getString("transaction_date"), rs.getString("description"),

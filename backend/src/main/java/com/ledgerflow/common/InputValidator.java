@@ -11,6 +11,7 @@ import tools.jackson.databind.JsonNode;
 
 @Component
 public class InputValidator {
+    public static final long MAX_TRANSACTION_AMOUNT = 1_000_000_000_000L;
     private static final Pattern EMAIL = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
     private static final Pattern PHONE = Pattern.compile("\\d{10}");
 
@@ -41,6 +42,9 @@ public class InputValidator {
         JsonNode value = body.get(field);
         if (value == null || !value.isIntegralNumber() || !value.canConvertToLong() || value.longValue() <= 0) {
             invalid(field + " must be a positive whole-rupee integer.");
+        }
+        if (value.longValue() > MAX_TRANSACTION_AMOUNT) {
+            invalid(field + " exceeds the maximum allowed whole-rupee amount.");
         }
         return value.longValue();
     }

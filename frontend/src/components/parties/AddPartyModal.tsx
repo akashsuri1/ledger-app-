@@ -1,4 +1,5 @@
 import {
+  useRef,
   useState,
 } from "react";
 
@@ -47,6 +48,8 @@ export default function AddPartyModal({
 
   const [notes, setNotes] =
     useState("");
+  const pending = useRef(false);
+  const [busy, setBusy] = useState(false);
 
   function resetForm() {
     setName("");
@@ -58,6 +61,7 @@ export default function AddPartyModal({
   }
 
   function closeModal() {
+    if (pending.current) return;
     resetForm();
     onClose();
   }
@@ -66,6 +70,7 @@ export default function AddPartyModal({
     event: FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
+    if (pending.current) return;
 
     const cleanPhone =
       phone.trim();
@@ -96,6 +101,8 @@ export default function AddPartyModal({
       return;
     }
 
+    pending.current = true;
+    setBusy(true);
     try {
       const party =
         await addParty({
@@ -137,6 +144,7 @@ export default function AddPartyModal({
         },
       );
 
+      pending.current = false;
       closeModal();
     } catch (error) {
       toast.error(
@@ -144,6 +152,9 @@ export default function AddPartyModal({
           ? error.message
           : "Unable to add party.",
       );
+    } finally {
+      pending.current = false;
+      setBusy(false);
     }
   }
 
@@ -159,11 +170,12 @@ export default function AddPartyModal({
         className="space-y-5"
       >
         <div>
-          <label className="mb-2 block text-sm font-medium text-slate-700">
+          <label htmlFor="party-name" className="mb-2 block text-sm font-medium text-slate-700">
             Party Name *
           </label>
 
           <input
+            id="party-name"
             value={name}
             onChange={(event) =>
               setName(
@@ -177,11 +189,12 @@ export default function AddPartyModal({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="mb-2 block text-sm font-medium text-slate-700">
+            <label htmlFor="party-phone" className="mb-2 block text-sm font-medium text-slate-700">
               Phone
             </label>
 
           <input
+            id="party-phone"
             value={phone}
             inputMode="numeric"
               onChange={(event) =>
@@ -196,11 +209,12 @@ export default function AddPartyModal({
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-medium text-slate-700">
+            <label htmlFor="party-region" className="mb-2 block text-sm font-medium text-slate-700">
               Region *
             </label>
 
             <select
+              id="party-region"
               value={regionId}
               onChange={(event) =>
                 setRegionId(
@@ -234,11 +248,12 @@ export default function AddPartyModal({
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-slate-700">
+          <label htmlFor="party-address" className="mb-2 block text-sm font-medium text-slate-700">
             Address
           </label>
 
           <textarea
+            id="party-address"
             value={address}
             onChange={(event) =>
               setAddress(
@@ -252,11 +267,12 @@ export default function AddPartyModal({
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-slate-700">
+          <label htmlFor="party-gstin" className="mb-2 block text-sm font-medium text-slate-700">
             GSTIN
           </label>
 
           <input
+            id="party-gstin"
             value={gstin}
             onChange={(event) =>
               setGstin(
@@ -269,11 +285,12 @@ export default function AddPartyModal({
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-slate-700">
+          <label htmlFor="party-notes" className="mb-2 block text-sm font-medium text-slate-700">
             Notes
           </label>
 
           <textarea
+            id="party-notes"
             value={notes}
             onChange={(event) =>
               setNotes(
@@ -290,6 +307,7 @@ export default function AddPartyModal({
           <button
             type="button"
             onClick={closeModal}
+            disabled={busy}
             className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
           >
             Cancel
@@ -297,9 +315,10 @@ export default function AddPartyModal({
 
           <button
             type="submit"
+            disabled={busy}
             className="rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-800"
           >
-            Save Party
+            {busy ? "Saving..." : "Save Party"}
           </button>
         </div>
       </form>

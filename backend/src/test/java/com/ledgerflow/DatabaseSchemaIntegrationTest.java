@@ -32,10 +32,13 @@ class DatabaseSchemaIntegrationTest {
             System.getProperty("java.io.tmpdir"),
             "ledgerflow-schema-" + UUID.randomUUID() + ".db"
     );
+    private static final Path DATA_PATH = Path.of(System.getProperty("java.io.tmpdir"),
+            "ledgerflow-schema-data-" + UUID.randomUUID());
 
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
         registry.add("ledgerflow.database.path", DATABASE_PATH::toString);
+        registry.add("ledgerflow.data-dir", DATA_PATH::toString);
     }
 
     @Autowired
@@ -68,6 +71,9 @@ class DatabaseSchemaIntegrationTest {
         Files.deleteIfExists(DATABASE_PATH);
         Files.deleteIfExists(Path.of(DATABASE_PATH + "-wal"));
         Files.deleteIfExists(Path.of(DATABASE_PATH + "-shm"));
+        try (var paths = Files.walk(DATA_PATH)) {
+            for (Path path : paths.sorted(java.util.Comparator.reverseOrder()).toList()) Files.deleteIfExists(path);
+        }
     }
 
     @Test
@@ -79,7 +85,10 @@ class DatabaseSchemaIntegrationTest {
                 "SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1",
                 Integer.class
         );
-        assertEquals(3, successfulMigrations);
+        assertEquals(4, successfulMigrations);
+        assertEquals(1, jdbc.queryForObject("""
+                SELECT COUNT(*) FROM pragma_table_info('transaction_attachments') WHERE name='sha256'
+                """, Integer.class));
 
         Integer domainTableCount = jdbc.queryForObject(
                 """

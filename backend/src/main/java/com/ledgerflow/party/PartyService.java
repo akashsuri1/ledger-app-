@@ -62,6 +62,7 @@ public class PartyService {
 
     @Transactional
     public PartyView create(AuthenticatedUser user, long companyId, JsonNode body) {
+        companyLocks.lockUntilTransactionComplete(companyId);
         access.requireRole(user.userId(), companyId, WRITERS);
         validator.object(body);
         String name = validator.requiredText(body, "name");
@@ -85,6 +86,7 @@ public class PartyService {
 
     @Transactional
     public PartyView update(AuthenticatedUser user, long companyId, long partyId, JsonNode body) {
+        companyLocks.lockUntilTransactionComplete(companyId);
         access.requireRole(user.userId(), companyId, WRITERS);
         validator.object(body);
         var existing = require(companyId, partyId);
@@ -112,8 +114,8 @@ public class PartyService {
 
     @Transactional
     public void delete(AuthenticatedUser user, long companyId, long partyId) {
-        access.requireRole(user.userId(), companyId, WRITERS);
         companyLocks.lockUntilTransactionComplete(companyId);
+        access.requireRole(user.userId(), companyId, WRITERS);
         require(companyId, partyId);
         var files = attachments.findForParty(companyId, partyId);
         attachmentCleanup.afterCommit(files);

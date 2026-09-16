@@ -16,10 +16,16 @@ spring:
       max-file-size: ${LEDGERFLOW_MULTIPART_MAX_SIZE:256MB}
       max-request-size: ${LEDGERFLOW_MULTIPART_REQUEST_MAX_SIZE:257MB}
 
+logging:
+  level:
+    # MVC debug messages otherwise render JsonNode auth bodies containing passwords/reset tokens.
+    org.springframework.web.servlet.mvc.method.annotation.RequestResponseBodyMethodProcessor: WARN
+    org.springframework.web.servlet.mvc.method.annotation.HttpEntityMethodProcessor: WARN
+
 ledgerflow:
   data-dir: ${LEDGERFLOW_DATA_DIR:${user.home}/.ledgerflow/data}
   database:
-    path: ${LEDGERFLOW_DATABASE_PATH:${user.home}/.ledgerflow/data/ledgerflow.db}
+    path: ${LEDGERFLOW_DATABASE_PATH:${ledgerflow.data-dir}/ledgerflow.db}
   security:
     session-cookie-name: LF_SESSION
     session-ttl: 7d

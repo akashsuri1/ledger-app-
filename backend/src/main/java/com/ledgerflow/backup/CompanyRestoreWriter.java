@@ -39,22 +39,24 @@ public class CompanyRestoreWriter {
     private final AttachmentStorage storage;
     private final SecurityAuditRepository audit;
     private final TransactionTemplate transactionTemplate;
+    private final CompanyOperationLock companyLocks;
 
     public CompanyRestoreWriter(CompanyRepository companies, RegionRepository regions,
                                 PartyRepository parties, TransactionRepository transactions,
                                 CompanySettingsRepository settings, AttachmentRepository attachments,
                                 AttachmentStorage storage, SecurityAuditRepository audit,
-                                TransactionTemplate transactionTemplate) {
+                                TransactionTemplate transactionTemplate, CompanyOperationLock companyLocks) {
         this.companies = companies; this.regions = regions; this.parties = parties;
         this.transactions = transactions; this.settings = settings; this.attachments = attachments;
         this.storage = storage; this.audit = audit; this.transactionTemplate = transactionTemplate;
+        this.companyLocks = companyLocks;
     }
 
     public RestoreResult restore(long userId, Archive archive, Counts counts, String companyName,
                                  String auditAction) {
         List<String> storedKeys = new ArrayList<>();
         try {
-            return transactionTemplate.execute(status -> {
+            return companyLocks.withLock(-userId, () -> transactionTemplate.execute(status -> {
                 String normalizedName = TextNormalizer.comparison(companyName);
                 if (companies.accessibleNameExists(userId, normalizedName, null)) {
                     throw new ApiException(HttpStatus.CONFLICT, "RESTORE_CONFLICT",
@@ -99,7 +101,7 @@ public class CompanyRestoreWriter {
                                 new ByteArrayInputStream(bytes), bytes.length);
                         storedKeys.add(stored.storageKey());
                         attachments.upsert(companyId, id, stored.storageKey(), metadata.originalName(),
-                                metadata.mimeType(), bytes.length);
+                                metadata.mimeType(), bytes.length, metadata.sha256().toLowerCase(java.util.Locale.ROOT));
                         if (!storage.exists(stored.storageKey())) {
                             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "RESTORE_FAILED",
                                     "A staged attachment could not be verified.");
@@ -111,7 +113,7 @@ public class CompanyRestoreWriter {
                                 + ",\"transactions\":" + counts.transactions() + ",\"attachments\":"
                                 + counts.attachments() + "}");
                 return new RestoreResult(companyId, companyName, counts, List.of());
-            });
+            }));
         } catch (RuntimeException exception) {
             for (String key : storedKeys) {
                 if (!storage.delete(key)) log.warn("Restore compensation could not remove storage key hash {}",

@@ -2,11 +2,13 @@ package com.ledgerflow.attachment;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ByteArrayInputStream;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
 import com.ledgerflow.auth.SecurityAuditRepository;
 import com.ledgerflow.backup.CompanyOperationLock;
+import com.ledgerflow.backup.BackupArchive;
 import com.ledgerflow.membership.CompanyAccessService;
 import com.ledgerflow.membership.MembershipRole;
 import com.ledgerflow.security.AuthenticatedUser;
@@ -59,12 +61,21 @@ public class AttachmentService {
         requireTransaction(companyId, transactionId);
         var valid = validator.validate(file);
         AttachmentStorage.StoredFile stored;
+        byte[] bytes;
         try {
-            stored = storage.store(companyId, transactionId, valid.extension(), file.getInputStream(), valid.maxBytes());
+            bytes = file.getBytes();
+            stored = storage.store(companyId, transactionId, valid.extension(),
+                    new ByteArrayInputStream(bytes), valid.maxBytes());
         } catch (IOException exception) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "ATTACHMENT_CONTENT_INVALID",
                     "The attachment could not be read.");
         }
+        if (stored.byteSize() != bytes.length) {
+            storage.delete(stored.storageKey());
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "ATTACHMENT_STORAGE_FAILED",
+                    "The stored attachment size could not be verified.");
+        }
+        String sha256 = BackupArchive.sha256(bytes);
 
         ReentrantLock lock = locks.computeIfAbsent(companyId + ":" + transactionId, ignored -> new ReentrantLock());
         lock.lock();
@@ -75,7 +86,7 @@ public class AttachmentService {
                     requireTransaction(companyId, transactionId);
                     var previous = attachments.find(companyId, transactionId).orElse(null);
                     attachments.upsert(companyId, transactionId, stored.storageKey(), valid.originalName(),
-                            valid.mimeType(), stored.byteSize());
+                            valid.mimeType(), stored.byteSize(), sha256);
                     var current = requireAttachment(companyId, transactionId);
                     String action = previous == null ? "ATTACHMENT_UPLOADED" : "ATTACHMENT_REPLACED";
                     audit.record(user.userId(), companyId, action, "TRANSACTION_ATTACHMENT", current.id(),
@@ -105,7 +116,23 @@ public class AttachmentService {
         requireTransaction(companyId, transactionId);
         var attachment = requireAttachment(companyId, transactionId);
         var file = storage.load(attachment.storageKey());
-        return new Download(attachment.view(), file.inputStream(), file.byteSize());
+        if (file.byteSize() != attachment.byteSize()) {
+            try { file.inputStream().close(); } catch (IOException ignored) { }
+            throw corruptedFile();
+        }
+        try (InputStream input = file.inputStream()) {
+            byte[] bytes = input.readAllBytes();
+            if (bytes.length != attachment.byteSize()
+                    || (attachment.sha256() != null && !BackupArchive.sha256(bytes).equals(attachment.sha256()))) {
+                throw corruptedFile();
+            }
+            if (attachment.sha256() == null) {
+                validator.validate(attachment.originalName(), attachment.mimeType(), bytes);
+            }
+            return new Download(attachment.view(), new ByteArrayInputStream(bytes), bytes.length);
+        } catch (IOException exception) {
+            throw corruptedFile();
+        }
     }
 
     public void delete(AuthenticatedUser user, long companyId, long transactionId) {
@@ -147,5 +174,9 @@ public class AttachmentService {
     }
 
     private record Change(AttachmentRepository.Attachment previous, AttachmentRepository.Attachment current) {}
+    private ApiException corruptedFile() {
+        return new ApiException(HttpStatus.CONFLICT, "ATTACHMENT_FILE_CORRUPTED",
+                "The stored attachment no longer matches its metadata.");
+    }
     public record Download(AttachmentView metadata, InputStream inputStream, long byteSize) {}
 }

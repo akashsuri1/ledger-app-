@@ -19,6 +19,8 @@ import Modal from "../ui/Modal";
 import {
   useLedger,
 } from "../../hooks/useLedger";
+import { isValidTransactionAmount } from "../../utils/moneyLimits";
+import { PartialTransactionSaveError } from "../../utils/partialTransactionSave";
 
 interface AddTransactionModalProps {
   open: boolean;
@@ -106,7 +108,7 @@ export default function AddTransactionModal({
       return;
     }
 
-    if (!amount || !Number.isSafeInteger(Number(amount)) || Number(amount) <= 0) {
+    if (!amount || !isValidTransactionAmount(Number(amount))) {
       toast.error(
         "Enter a valid amount.",
       );
@@ -182,6 +184,7 @@ export default function AddTransactionModal({
 
       onClose();
     } catch (error) {
+      if (error instanceof PartialTransactionSaveError) onClose();
       toast.error(
         error instanceof Error
           ? error.message

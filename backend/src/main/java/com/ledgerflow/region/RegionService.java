@@ -3,6 +3,7 @@ package com.ledgerflow.region;
 import java.util.List;
 
 import com.ledgerflow.auth.SecurityAuditRepository;
+import com.ledgerflow.backup.CompanyOperationLock;
 import com.ledgerflow.common.InputValidator;
 import com.ledgerflow.common.TextNormalizer;
 import com.ledgerflow.membership.CompanyAccessService;
@@ -24,10 +25,13 @@ public class RegionService {
     private final CompanyAccessService access;
     private final InputValidator validator;
     private final SecurityAuditRepository audit;
+    private final CompanyOperationLock companyLocks;
 
     public RegionService(RegionRepository regions, CompanyAccessService access,
-                         InputValidator validator, SecurityAuditRepository audit) {
+                         InputValidator validator, SecurityAuditRepository audit,
+                         CompanyOperationLock companyLocks) {
         this.regions = regions; this.access = access; this.validator = validator; this.audit = audit;
+        this.companyLocks = companyLocks;
     }
 
     public record RegionView(long id, long companyId, String name, String createdAt, String updatedAt) {}
@@ -39,6 +43,7 @@ public class RegionService {
 
     @Transactional
     public RegionView create(AuthenticatedUser user, long companyId, JsonNode body) {
+        companyLocks.lockUntilTransactionComplete(companyId);
         access.requireRole(user.userId(), companyId, WRITERS);
         validator.object(body);
         String name = validator.requiredText(body, "name");
@@ -55,6 +60,7 @@ public class RegionService {
 
     @Transactional
     public RegionView update(AuthenticatedUser user, long companyId, long regionId, JsonNode body) {
+        companyLocks.lockUntilTransactionComplete(companyId);
         access.requireRole(user.userId(), companyId, WRITERS);
         validator.object(body);
         var existing = require(companyId, regionId);
@@ -73,6 +79,7 @@ public class RegionService {
 
     @Transactional
     public void delete(AuthenticatedUser user, long companyId, long regionId) {
+        companyLocks.lockUntilTransactionComplete(companyId);
         access.requireRole(user.userId(), companyId, WRITERS);
         require(companyId, regionId);
         if (regions.partyCount(companyId, regionId) > 0) {

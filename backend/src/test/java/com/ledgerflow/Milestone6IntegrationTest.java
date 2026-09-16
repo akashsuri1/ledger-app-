@@ -301,6 +301,43 @@ class Milestone6IntegrationTest {
     }
 
     @Test
+    void missingMalformedAndChecksumCorruptedArchiveContentIsRejectedWithoutMutation() throws Exception {
+        Client owner = client("malformed-archive@example.com");
+        long company = simpleLedger(owner, "Malformed Archive Co");
+        byte[] valid = backup(owner, company, PASSPHRASE);
+        Map<String, byte[]> original = unzip(crypto.decrypt(valid, PASSPHRASE.toCharArray()));
+        int companiesBefore = count("SELECT COUNT(*) FROM companies");
+
+        Map<String, byte[]> missingCompany = new HashMap<>(original);
+        missingCompany.remove("company.json");
+        byte[] missing = crypto.encrypt(zip(missingCompany), PASSPHRASE.toCharArray());
+        mvc.perform(restoreRequest("/api/backups/restore/preview", owner, missing, PASSPHRASE, null))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code", is("BACKUP_CORRUPTED")));
+
+        Map<String, byte[]> malformedManifest = new HashMap<>(original);
+        malformedManifest.put("manifest.json", "{not-json".getBytes(StandardCharsets.UTF_8));
+        byte[] malformed = crypto.encrypt(zip(malformedManifest), PASSPHRASE.toCharArray());
+        mvc.perform(restoreRequest("/api/backups/restore/commit", owner, malformed,
+                        PASSPHRASE, "Must Not Exist"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code", is("BACKUP_CORRUPTED")));
+
+        Map<String, byte[]> badChecksum = new HashMap<>(original);
+        byte[] companyJson = badChecksum.get("company.json").clone();
+        companyJson[companyJson.length - 2] ^= 1;
+        badChecksum.put("company.json", companyJson);
+        byte[] checksumFailure = crypto.encrypt(zip(badChecksum), PASSPHRASE.toCharArray());
+        mvc.perform(restoreRequest("/api/backups/restore/preview", owner, checksumFailure,
+                        PASSPHRASE, null))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code", is("BACKUP_CORRUPTED")));
+
+        assertEquals(companiesBefore, count("SELECT COUNT(*) FROM companies"));
+        assertEquals(0, count("SELECT COUNT(*) FROM companies WHERE name='Must Not Exist'"));
+    }
+
+    @Test
     void restoreFailureRollsBackDatabaseAndCompensatesStagedFiles() throws Exception {
         Client owner = client("failure@example.com");
         long company = simpleLedger(owner, "Failure Source");

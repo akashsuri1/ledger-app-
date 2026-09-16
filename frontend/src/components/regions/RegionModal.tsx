@@ -1,4 +1,5 @@
 import {
+  useRef,
   useState,
 } from "react";
 
@@ -43,11 +44,14 @@ function RegionModalContent({
 
   const [name, setName] =
     useState(region?.name ?? "");
+  const pending = useRef(false);
+  const [busy, setBusy] = useState(false);
 
   const isEditing =
     regionId !== null;
 
   function closeModal() {
+    if (pending.current) return;
     setName("");
     onClose();
   }
@@ -56,6 +60,7 @@ function RegionModalContent({
     event: FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
+    if (pending.current) return;
 
     const cleanName =
       name.trim();
@@ -68,6 +73,8 @@ function RegionModalContent({
       return;
     }
 
+    pending.current = true;
+    setBusy(true);
     try {
       if (
         regionId !== null
@@ -90,6 +97,7 @@ function RegionModalContent({
         );
       }
 
+      pending.current = false;
       closeModal();
     } catch (error) {
       toast.error(
@@ -97,6 +105,9 @@ function RegionModalContent({
           ? error.message
           : "Unable to save region.",
       );
+    } finally {
+      pending.current = false;
+      setBusy(false);
     }
   }
 
@@ -120,11 +131,12 @@ function RegionModalContent({
         className="space-y-5"
       >
         <div>
-          <label className="mb-2 block text-sm font-medium text-slate-700">
+          <label htmlFor="region-name" className="mb-2 block text-sm font-medium text-slate-700">
             Region Name *
           </label>
 
           <input
+            id="region-name"
             autoFocus
             value={name}
             onChange={(event) =>
@@ -145,6 +157,7 @@ function RegionModalContent({
           <button
             type="button"
             onClick={closeModal}
+            disabled={busy}
             className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
           >
             Cancel
@@ -152,9 +165,10 @@ function RegionModalContent({
 
           <button
             type="submit"
+            disabled={busy}
             className="rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
           >
-            {isEditing
+            {busy ? "Saving..." : isEditing
               ? "Save Changes"
               : "Add Region"}
           </button>

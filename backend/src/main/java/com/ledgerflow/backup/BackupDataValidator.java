@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import com.ledgerflow.attachment.AttachmentFileValidator;
+import com.ledgerflow.common.InputValidator;
 import com.ledgerflow.backup.BackupModels.Archive;
 import com.ledgerflow.backup.BackupModels.AttachmentData;
 import com.ledgerflow.backup.BackupModels.CompanyData;
@@ -89,6 +90,8 @@ public class BackupDataValidator {
         Set<String> usedEntries = new HashSet<>();
         List<TransactionData> transactions = new ArrayList<>();
         int attachmentCount = 0;
+        long totalCredit = 0;
+        long totalDebit = 0;
         for (TransactionData transaction : company.transactions()) {
             positive(transaction.sourceId(), "Transaction id");
             if (!transactionIds.add(transaction.sourceId())) throw corrupted("Transactions contain duplicate identifiers.");
@@ -97,6 +100,14 @@ public class BackupDataValidator {
                 throw corrupted("A Transaction type is invalid.");
             }
             positive(transaction.amount(), "Transaction amount");
+            if (transaction.amount() > InputValidator.MAX_TRANSACTION_AMOUNT)
+                throw corrupted("A Transaction amount exceeds the application limit.");
+            try {
+                if ("CREDIT".equals(transaction.type())) totalCredit = Math.addExact(totalCredit, transaction.amount());
+                else totalDebit = Math.addExact(totalDebit, transaction.amount());
+            } catch (ArithmeticException exception) {
+                throw corrupted("Company Transaction totals exceed the safe ledger limit.");
+            }
             validDate(transaction.transactionDate());
             String description = required(transaction.description(), "Transaction description");
             AttachmentData attachment = null;

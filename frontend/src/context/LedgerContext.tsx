@@ -14,6 +14,10 @@ import type { Company, LedgerTransaction, NewCompany, NewParty, NewRegion, NewTr
 import type { AppSettingsPatch } from "../types/settings";
 import type { LedgerWorkspace } from "../types/workspace";
 import { DEFAULT_APPEARANCE_SETTINGS, DEFAULT_PRINT_SETTINGS } from "../utils/settingsStorage";
+import { isValidTransactionAmount } from "../utils/moneyLimits";
+import { loadAllPages } from "../utils/loadAllPages";
+import { PartialTransactionSaveError } from "../utils/partialTransactionSave";
+import { activeTabCompanyId, clearActiveTabCompany, setActiveTabCompany } from "../utils/sessionCompany";
 import type { SettingsSaveResult } from "../utils/settingsStorage";
 import { companyDestination, initialCompanyId } from "../utils/companyRouting";
 import { LedgerContext } from "./ledger-context";
@@ -42,12 +46,12 @@ function mapCompany(value: CompanyDto, settings?: CompanySettingsDto): Company {
 
 function mapRegion(value: RegionDto): Region { return { id: value.id, companyId: value.companyId, name: value.name }; }
 async function allParties(companyId: number, signal: AbortSignal) {
-  const first = await partyApi.list(companyId, { page: 1, pageSize: 100 }, signal);
-  return first.data.map(mapPartyDto);
+  const values = await loadAllPages((page) => partyApi.list(companyId, { page, pageSize: 100 }, signal), signal);
+  return values.map(mapPartyDto);
 }
 async function allTransactions(companyId: number, signal: AbortSignal) {
-  const first = await transactionApi.list(companyId, { page: 1, pageSize: 100 }, signal);
-  return first.data.map(mapTransactionDto);
+  const values = await loadAllPages((page) => transactionApi.list(companyId, { page, pageSize: 100 }, signal), signal);
+  return values.map(mapTransactionDto);
 }
 
 function failed(cause: unknown): SettingsSaveResult {
@@ -56,8 +60,11 @@ function failed(cause: unknown): SettingsSaveResult {
 
 export function LedgerProvider({ children }: { children: ReactNode }) {
   const auth = useAuth();
-  const [activeCompanyId, setActiveCompanyId] = useState(() => initialCompanyId(auth.companies, auth.preferences));
-  const [selectionRequired, setSelectionRequired] = useState(() => companyDestination(auth.companies, auth.preferences) === "select");
+  const [activeCompanyId, setActiveCompanyId] = useState(() =>
+    activeTabCompanyId(auth.user?.id ?? 0, auth.companies) ?? initialCompanyId(auth.companies, auth.preferences));
+  const [selectionRequired, setSelectionRequired] = useState(() =>
+    activeTabCompanyId(auth.user?.id ?? 0, auth.companies) === null
+      && companyDestination(auth.companies, auth.preferences) === "select");
   const [companySettings, setCompanySettings] = useState<CompanySettingsDto | null>(null);
   const [regions, setRegions] = useState<Region[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
@@ -67,9 +74,10 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const requestNumber = useRef(0);
   const controller = useRef<AbortController | null>(null);
+  const companyIdRef = useRef(activeCompanyId);
 
   const refreshCompanyData = useCallback(async () => {
-    if (!activeCompanyId) return;
+    if (!activeCompanyId || activeCompanyId !== companyIdRef.current) return;
     controller.current?.abort();
     const currentController = new AbortController();
     controller.current = currentController;
@@ -81,13 +89,13 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
         allParties(activeCompanyId, currentController.signal), allTransactions(activeCompanyId, currentController.signal),
         dashboardApi.get(activeCompanyId, currentController.signal),
       ]);
-      if (request !== requestNumber.current) return;
+      if (request !== requestNumber.current || activeCompanyId !== companyIdRef.current) return;
       setCompanySettings(settings); setRegions(regionValues.map(mapRegion)); setParties(partyValues);
       setTransactions(transactionValues); setDashboard(dashboardValue);
     } catch (cause) {
       if (cause instanceof DOMException && cause.name === "AbortError") return;
-      if (request === requestNumber.current) setError(cause instanceof Error ? cause.message : "Unable to load this company.");
-    } finally { if (request === requestNumber.current) setIsLoading(false); }
+      if (request === requestNumber.current && activeCompanyId === companyIdRef.current) setError(cause instanceof Error ? cause.message : "Unable to load this company.");
+    } finally { if (request === requestNumber.current && activeCompanyId === companyIdRef.current) setIsLoading(false); }
   }, [activeCompanyId]);
 
   useEffect(() => { queueMicrotask(() => void refreshCompanyData()); return () => controller.current?.abort(); }, [refreshCompanyData]);
@@ -100,6 +108,8 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
   const createCompany = useCallback(async (input: NewCompany) => {
     const created = await companyApi.create(input);
     await auth.refreshBootstrap();
+    setActiveTabCompany(auth.user?.id ?? 0, created.id);
+    companyIdRef.current = created.id;
     setActiveCompanyId(created.id); setSelectionRequired(false);
     return mapCompany(created);
   }, [auth]);
@@ -110,13 +120,21 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
     await companyApi.remove(companyId);
     const next = await auth.refreshBootstrap();
     if (companyId === activeCompanyId && next) {
-      setActiveCompanyId(initialCompanyId(next.companies, next.preferences));
+      const nextId = initialCompanyId(next.companies, next.preferences);
+      if (nextId) setActiveTabCompany(auth.user?.id ?? 0, nextId);
+      else clearActiveTabCompany();
+      companyIdRef.current = nextId;
+      requestNumber.current += 1; controller.current?.abort();
+      setRegions([]); setParties([]); setTransactions([]); setDashboard(null); setCompanySettings(null);
+      setActiveCompanyId(nextId);
       setSelectionRequired(companyDestination(next.companies, next.preferences) === "select");
     }
   }, [activeCompanyId, auth]);
   const switchCompany = useCallback(async (companyId: number) => {
     if (!auth.companies.some((item) => item.id === companyId)) throw new Error("You do not have access to that company.");
     requestNumber.current += 1; controller.current?.abort();
+    companyIdRef.current = companyId;
+    setActiveTabCompany(auth.user?.id ?? 0, companyId);
     setRegions([]); setParties([]); setTransactions([]); setDashboard(null); setCompanySettings(null);
     setActiveCompanyId(companyId); setSelectionRequired(false);
     if (auth.preferences?.rememberLastCompany) await auth.updatePreferences({ lastActiveCompanyId: companyId });
@@ -129,22 +147,33 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
   const updateRegion = useCallback(async (id: number, name: string) => { await regionApi.update(activeCompanyId, id, name); await refreshCompanyData(); }, [activeCompanyId, refreshCompanyData]);
   const deleteRegion = useCallback(async (id: number) => { await regionApi.remove(activeCompanyId, id); await refreshCompanyData(); }, [activeCompanyId, refreshCompanyData]);
   const addTransaction = useCallback(async (input: NewTransaction) => {
-    if (!Number.isSafeInteger(input.amount) || input.amount <= 0) throw new Error("Amount must be a positive whole rupee value.");
+    if (!isValidTransactionAmount(input.amount)) throw new Error("Amount must be a positive whole rupee value within the allowed limit.");
     const attachmentFile=input.attachmentFile;
     const body={partyId:input.partyId,type:input.type,amount:input.amount,transactionDate:input.transactionDate,description:input.description,notes:input.notes};
     let value = await transactionApi.create(activeCompanyId, body);
     if (attachmentFile) {
-      const attachment = await attachmentApi.upload(activeCompanyId, value.id, attachmentFile);
-      value = { ...value, attachment };
+      try {
+        const attachment = await attachmentApi.upload(activeCompanyId, value.id, attachmentFile);
+        value = { ...value, attachment };
+      } catch (cause) {
+        await refreshCompanyData();
+        throw new PartialTransactionSaveError(value.id, "created", cause);
+      }
     }
     await refreshCompanyData(); return mapTransactionDto(value);
   }, [activeCompanyId, refreshCompanyData]);
   const updateTransaction = useCallback(async (id: number, input: UpdateTransaction) => {
-    if (input.amount !== undefined && (!Number.isSafeInteger(input.amount) || input.amount <= 0)) throw new Error("Amount must be a positive whole rupee value.");
+    if (input.amount !== undefined && !isValidTransactionAmount(input.amount)) throw new Error("Amount must be a positive whole rupee value within the allowed limit.");
     const attachmentFile=input.attachmentFile;
     const body={...(input.partyId===undefined?{}:{partyId:input.partyId}),...(input.type===undefined?{}:{type:input.type}),...(input.amount===undefined?{}:{amount:input.amount}),...(input.transactionDate===undefined?{}:{transactionDate:input.transactionDate}),...(input.description===undefined?{}:{description:input.description}),...(input.notes===undefined?{}:{notes:input.notes})};
     await transactionApi.update(activeCompanyId, id, body);
-    if (attachmentFile) await attachmentApi.upload(activeCompanyId, id, attachmentFile);
+    if (attachmentFile) {
+      try { await attachmentApi.upload(activeCompanyId, id, attachmentFile); }
+      catch (cause) {
+        await refreshCompanyData();
+        throw new PartialTransactionSaveError(id, "updated", cause);
+      }
+    }
     await refreshCompanyData();
   }, [activeCompanyId, refreshCompanyData]);
   const deleteTransaction = useCallback(async (id: number) => { await transactionApi.remove(activeCompanyId, id); await refreshCompanyData(); }, [activeCompanyId, refreshCompanyData]);

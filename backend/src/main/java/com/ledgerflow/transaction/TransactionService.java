@@ -8,6 +8,7 @@ import com.ledgerflow.attachment.AttachmentView;
 import com.ledgerflow.backup.CompanyOperationLock;
 import com.ledgerflow.auth.SecurityAuditRepository;
 import com.ledgerflow.common.InputValidator;
+import com.ledgerflow.financial.FinancialRepository;
 import com.ledgerflow.membership.CompanyAccessService;
 import com.ledgerflow.membership.MembershipRole;
 import com.ledgerflow.party.PartyRepository;
@@ -15,6 +16,7 @@ import com.ledgerflow.region.RegionRepository;
 import com.ledgerflow.security.AuthenticatedUser;
 import com.ledgerflow.web.ApiException;
 import org.springframework.http.HttpStatus;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
@@ -33,12 +35,13 @@ public class TransactionService {
     private final AttachmentRepository attachments;
     private final AttachmentCleanupService attachmentCleanup;
     private final CompanyOperationLock companyLocks;
+    private final FinancialRepository financial;
 
     public TransactionService(TransactionRepository transactions, PartyRepository parties,
                               RegionRepository regions, CompanyAccessService access,
                               InputValidator validator, SecurityAuditRepository audit,
                               AttachmentRepository attachments, AttachmentCleanupService attachmentCleanup,
-                              CompanyOperationLock companyLocks) {
+                              CompanyOperationLock companyLocks, FinancialRepository financial) {
         this.transactions = transactions;
         this.parties = parties;
         this.regions = regions;
@@ -48,6 +51,7 @@ public class TransactionService {
         this.attachments = attachments;
         this.attachmentCleanup = attachmentCleanup;
         this.companyLocks = companyLocks;
+        this.financial = financial;
     }
 
     public record TransactionView(long id, long companyId, long partyId, String partyName,
@@ -78,6 +82,7 @@ public class TransactionService {
 
     @Transactional
     public TransactionView create(AuthenticatedUser user, long companyId, JsonNode body) {
+        companyLocks.lockUntilTransactionComplete(companyId);
         access.requireRole(user.userId(), companyId, WRITERS);
         validator.object(body);
         long partyId = validator.requiredPositiveId(body, "partyId");
@@ -88,11 +93,13 @@ public class TransactionService {
         String description = validator.requiredText(body, "description");
         String notes = validator.optionalText(body, "notes", "");
         long id = transactions.create(companyId, partyId, type, amount, date, description, notes);
+        verifySafeTotals(companyId);
         return view(require(companyId, id));
     }
 
     @Transactional
     public TransactionView update(AuthenticatedUser user, long companyId, long transactionId, JsonNode body) {
+        companyLocks.lockUntilTransactionComplete(companyId);
         access.requireRole(user.userId(), companyId, WRITERS);
         validator.object(body);
         var existing = require(companyId, transactionId);
@@ -111,19 +118,29 @@ public class TransactionService {
                 transactionId, companyId, partyId, existing.partyName(), existing.regionId(), existing.regionName(),
                 type, amount, date, description, notes, existing.createdAt(), existing.updatedAt(),
                 existing.attachment()));
+        verifySafeTotals(companyId);
         return view(require(companyId, transactionId));
     }
 
     @Transactional
     public void delete(AuthenticatedUser user, long companyId, long transactionId) {
-        access.requireRole(user.userId(), companyId, WRITERS);
         companyLocks.lockUntilTransactionComplete(companyId);
+        access.requireRole(user.userId(), companyId, WRITERS);
         require(companyId, transactionId);
         var attachment = attachments.find(companyId, transactionId).stream().toList();
         attachmentCleanup.afterCommit(attachment);
         audit.record(user.userId(), companyId, "TRANSACTION_DELETED", "TRANSACTION", transactionId,
                 "{\"attachmentCount\":" + attachment.size() + "}");
         transactions.delete(companyId, transactionId);
+    }
+
+    private void verifySafeTotals(long companyId) {
+        try {
+            financial.activity(companyId, null, null, null, null);
+        } catch (DataAccessException exception) {
+            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "AMOUNT_LIMIT_EXCEEDED",
+                    "Company ledger totals exceed the safe whole-rupee limit.");
+        }
     }
 
     private TransactionType requiredType(JsonNode body) {

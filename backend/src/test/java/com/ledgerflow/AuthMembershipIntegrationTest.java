@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
@@ -27,6 +28,8 @@ import com.ledgerflow.auth.UserAccount;
 import com.ledgerflow.membership.CompanyAccessService;
 import com.ledgerflow.membership.MembershipRole;
 import com.ledgerflow.security.TokenService;
+import com.ledgerflow.security.LedgerFlowSecurityProperties;
+import com.ledgerflow.security.SessionCookieService;
 import com.ledgerflow.web.ApiException;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterAll;
@@ -44,6 +47,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.mock.web.MockHttpServletResponse;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -53,11 +57,14 @@ import org.springframework.web.context.WebApplicationContext;
 class AuthMembershipIntegrationTest {
     private static final Path DATABASE_PATH = Path.of(System.getProperty("java.io.tmpdir"),
             "ledgerflow-auth-" + UUID.randomUUID() + ".db");
+    private static final Path DATA_PATH = Path.of(System.getProperty("java.io.tmpdir"),
+            "ledgerflow-auth-data-" + UUID.randomUUID());
     private static final String PASSWORD = "correct horse battery staple";
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         registry.add("ledgerflow.database.path", DATABASE_PATH::toString);
+        registry.add("ledgerflow.data-dir", DATA_PATH::toString);
         registry.add("ledgerflow.security.auth-rate-limit", () -> 1000);
     }
 
@@ -88,6 +95,9 @@ class AuthMembershipIntegrationTest {
         Files.deleteIfExists(DATABASE_PATH);
         Files.deleteIfExists(Path.of(DATABASE_PATH + "-wal"));
         Files.deleteIfExists(Path.of(DATABASE_PATH + "-shm"));
+        try (var paths = Files.walk(DATA_PATH)) {
+            for (Path path : paths.sorted(java.util.Comparator.reverseOrder()).toList()) Files.deleteIfExists(path);
+        }
     }
 
     @Test
@@ -96,6 +106,42 @@ class AuthMembershipIntegrationTest {
                         .content("{\"email\":\"a@example.com\",\"password\":\"" + PASSWORD + "\"}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code", is("CSRF_INVALID")));
+    }
+
+    @Test
+    void healthIsPublicReadinessOnlyAndCorsUsesExplicitOrigin() throws Exception {
+        mvc.perform(get("/api/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", is("UP")))
+                .andExpect(jsonPath("$.data").doesNotExist());
+        mvc.perform(get("/api/health").header("Origin", "http://localhost:5173"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"))
+                .andExpect(header().string("Access-Control-Allow-Credentials", "true"))
+                .andExpect(header().string("Access-Control-Expose-Headers", "Content-Disposition"));
+        mvc.perform(get("/api/health").header("Origin", "https://unapproved.example"))
+                .andExpect(status().isForbidden())
+                .andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
+    }
+
+    @Test
+    void productionCookieIsSecureHttpOnlyAndWildcardCorsConfigurationFails() {
+        var properties = new LedgerFlowSecurityProperties();
+        properties.setSecureCookies(true);
+        var response = new MockHttpServletResponse();
+        new SessionCookieService(properties).set(response, "opaque-test-value");
+        String cookie = response.getHeader("Set-Cookie");
+        assertNotNull(cookie);
+        assertTrue(cookie.contains("Secure"));
+        assertTrue(cookie.contains("HttpOnly"));
+        assertTrue(cookie.contains("SameSite=Lax"));
+        assertTrue(cookie.contains("Path=/"));
+        assertThrows(IllegalArgumentException.class, () -> properties.setAllowedOrigins(java.util.List.of("*")));
+        for (String origin : java.util.List.of("https://example.com/path", "https://user@example.com",
+                "https://example.com?source=other", "file:///tmp/site", "https://example.com/")) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> properties.setAllowedOrigins(java.util.List.of(origin)));
+        }
     }
 
     @Test
@@ -184,6 +230,23 @@ class AuthMembershipIntegrationTest {
         assertNotEquals(oldSession.getValue(), newSession.getValue());
         mvc.perform(get("/api/me/bootstrap").cookie(oldSession)).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/me/bootstrap").cookie(newSession)).andExpect(status().isOk());
+    }
+
+    @Test
+    void missingMalformedRevokedAndDeletedUserSessionsCannotAuthenticate() throws Exception {
+        Csrf csrf = csrf(); register(csrf, "user@example.com");
+        Cookie session = login(csrf, "user@example.com", PASSWORD);
+        mvc.perform(get("/api/me/bootstrap")).andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code", is("AUTH_REQUIRED")));
+        mvc.perform(get("/api/me/bootstrap").cookie(new Cookie("LF_SESSION", "malformed-token")))
+                .andExpect(status().isUnauthorized());
+        jdbc.update("UPDATE auth_sessions SET revoked_at=? WHERE token_hash=?",
+                Instant.now().toString(), tokenService.hash(session.getValue()));
+        mvc.perform(get("/api/me/bootstrap").cookie(session)).andExpect(status().isUnauthorized());
+
+        Cookie replacement = login(csrf, "user@example.com", PASSWORD);
+        jdbc.update("DELETE FROM users WHERE normalized_email='user@example.com'");
+        mvc.perform(get("/api/me/bootstrap").cookie(replacement)).andExpect(status().isUnauthorized());
     }
 
     @Test

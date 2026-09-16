@@ -3,6 +3,7 @@ package com.ledgerflow.company;
 import java.util.List;
 
 import com.ledgerflow.auth.SecurityAuditRepository;
+import com.ledgerflow.backup.CompanyOperationLock;
 import com.ledgerflow.common.InputValidator;
 import com.ledgerflow.common.TextNormalizer;
 import com.ledgerflow.membership.CompanyAccessService;
@@ -21,10 +22,13 @@ public class CompanyService {
     private final CompanyAccessService access;
     private final InputValidator validator;
     private final SecurityAuditRepository audit;
+    private final CompanyOperationLock companyLocks;
 
     public CompanyService(CompanyRepository companies, CompanyAccessService access,
-                          InputValidator validator, SecurityAuditRepository audit) {
+                          InputValidator validator, SecurityAuditRepository audit,
+                          CompanyOperationLock companyLocks) {
         this.companies = companies; this.access = access; this.validator = validator; this.audit = audit;
+        this.companyLocks = companyLocks;
     }
 
     public record CompanyView(long id, String name, String address, String phone, String gstin,
@@ -32,6 +36,7 @@ public class CompanyService {
 
     @Transactional
     public CompanyView create(AuthenticatedUser user, JsonNode body) {
+        companyLocks.lockUntilTransactionComplete(-user.userId());
         validator.object(body);
         String name = validator.requiredText(body, "name");
         String normalized = TextNormalizer.comparison(name);
@@ -60,6 +65,7 @@ public class CompanyService {
 
     @Transactional
     public CompanyView update(AuthenticatedUser user, long companyId, JsonNode body) {
+        companyLocks.lockUntilTransactionComplete(companyId);
         validator.object(body);
         var membership = access.requireRole(user.userId(), companyId, MembershipRole.OWNER, MembershipRole.ADMIN);
         var existing = requireCompany(companyId);
@@ -82,6 +88,7 @@ public class CompanyService {
 
     @Transactional
     public void delete(AuthenticatedUser user, long companyId) {
+        companyLocks.lockUntilTransactionComplete(companyId);
         access.requireRole(user.userId(), companyId, MembershipRole.OWNER);
         requireCompany(companyId);
         if (!companies.isEmpty(companyId)) {

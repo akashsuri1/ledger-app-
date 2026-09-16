@@ -62,6 +62,7 @@ export default function Header() {
     useState("");
   const [searchParties,setSearchParties]=useState<Party[]>([]);
   const [searchTransactions,setSearchTransactions]=useState<LedgerTransaction[]>([]);
+  const [searchResultKey,setSearchResultKey]=useState("");
 
   const [
     searchOpen,
@@ -104,8 +105,9 @@ export default function Header() {
     query
       .trim()
       .toLowerCase();
+  const searchKey = `${activeCompanyId}|${normalizedQuery}`;
 
-  useEffect(()=>{if(!normalizedQuery)return;const controller=new AbortController();const timer=window.setTimeout(()=>{void Promise.all([partyApi.list(activeCompanyId,{search:normalizedQuery,page:1,pageSize:5},controller.signal),transactionApi.list(activeCompanyId,{search:normalizedQuery,page:1,pageSize:5},controller.signal)]).then(([partyPage,transactionPage])=>{setSearchParties(partyPage.data.map(item=>({id:item.id,companyId:item.companyId,regionId:item.regionId,regionName:item.regionName,name:item.name,phone:item.phone,address:item.address,gstin:item.gstin,notes:item.notes,createdAt:item.createdAt,balance:item.balance,transactionCount:item.transactionCount})));setSearchTransactions(transactionPage.data.map(item=>({id:item.id,companyId:item.companyId,partyId:item.partyId,type:item.type,amount:item.amount,transactionDate:item.transactionDate,description:item.description,notes:item.notes,createdAt:item.createdAt,attachmentName:item.attachment?.originalName,attachmentId:item.attachment?.id,attachmentMimeType:item.attachment?.mimeType,attachmentByteSize:item.attachment?.byteSize})))}).catch(()=>undefined)},250);return()=>{window.clearTimeout(timer);controller.abort()}},[activeCompanyId,normalizedQuery]);
+  useEffect(()=>{if(!normalizedQuery)return;const controller=new AbortController();const timer=window.setTimeout(()=>{void Promise.all([partyApi.list(activeCompanyId,{search:normalizedQuery,page:1,pageSize:5},controller.signal),transactionApi.list(activeCompanyId,{search:normalizedQuery,page:1,pageSize:5},controller.signal)]).then(([partyPage,transactionPage])=>{if(controller.signal.aborted)return;setSearchParties(partyPage.data.map(item=>({id:item.id,companyId:item.companyId,regionId:item.regionId,regionName:item.regionName,name:item.name,phone:item.phone,address:item.address,gstin:item.gstin,notes:item.notes,createdAt:item.createdAt,balance:item.balance,transactionCount:item.transactionCount})));setSearchTransactions(transactionPage.data.map(item=>({id:item.id,companyId:item.companyId,partyId:item.partyId,type:item.type,amount:item.amount,transactionDate:item.transactionDate,description:item.description,notes:item.notes,createdAt:item.createdAt,attachmentName:item.attachment?.originalName,attachmentId:item.attachment?.id,attachmentMimeType:item.attachment?.mimeType,attachmentByteSize:item.attachment?.byteSize})));setSearchResultKey(searchKey)}).catch(()=>undefined)},250);return()=>{window.clearTimeout(timer);controller.abort()}},[activeCompanyId,normalizedQuery,searchKey]);
 
   const partyResults =
     useMemo(() => {
@@ -113,7 +115,7 @@ export default function Header() {
         return [];
       }
 
-      return (searchParties.length ? searchParties : parties)
+      return (searchResultKey===searchKey&&searchParties.length ? searchParties : parties)
         .filter((party) => {
           const region =
             regions.find(
@@ -159,6 +161,8 @@ export default function Header() {
     }, [
       parties,
       searchParties,
+      searchResultKey,
+      searchKey,
       regions,
       normalizedQuery,
     ]);
@@ -169,7 +173,7 @@ export default function Header() {
         return [];
       }
 
-      return (searchTransactions.length ? searchTransactions : transactions)
+      return (searchResultKey===searchKey&&searchTransactions.length ? searchTransactions : transactions)
         .filter(
           (transaction) => {
             const party =
@@ -222,6 +226,8 @@ export default function Header() {
     }, [
       transactions,
       searchTransactions,
+      searchResultKey,
+      searchKey,
       parties,
       regions,
       normalizedQuery,

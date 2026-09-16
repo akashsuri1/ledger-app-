@@ -22,6 +22,7 @@ import { useLedger } from "../../hooks/useLedger";
 import { transactionApi } from "../../api/transactionApi";
 
 import { mapTransactionDto } from "../../api/mappers";
+import { isValidTransactionAmount } from "../../utils/moneyLimits";
 
 import type { LedgerTransaction } from "../../types";
 
@@ -128,7 +129,7 @@ function EditTransactionModalContent({
       return;
     }
 
-    if (!amount || !Number.isSafeInteger(Number(amount)) || Number(amount) <= 0) {
+    if (!amount || !isValidTransactionAmount(Number(amount))) {
       toast.error(
         "Enter a valid amount.",
       );

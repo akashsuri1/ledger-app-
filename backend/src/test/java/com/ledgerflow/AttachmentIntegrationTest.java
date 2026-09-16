@@ -227,6 +227,51 @@ class AttachmentIntegrationTest {
     }
 
     @Test
+    void checksumRejectsSameSizeTamperingAndBackupWithoutChangingLedger() throws Exception {
+        Client owner = client("checksum-owner@example.com");
+        Ledger ledger = ledger(owner, "Checksum Co");
+        upload(owner, ledger, file("invoice.pdf", "application/pdf", PDF));
+        assertNotNull(jdbc.queryForObject("SELECT sha256 FROM transaction_attachments WHERE transaction_id=?",
+                String.class, ledger.transactionId));
+        Path physical = filePath(key(ledger.transactionId));
+        byte[] changed = PDF.clone();
+        changed[changed.length - 1] ^= 1;
+        Files.write(physical, changed);
+        mvc.perform(get(url(ledger)).cookie(owner.session))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code", is("ATTACHMENT_FILE_CORRUPTED")));
+        mvc.perform(withAuth(post("/api/companies/{id}/backup", ledger.companyId), owner)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"passphrase\":\"safe backup passphrase\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code", is("BACKUP_ATTACHMENT_INVALID")));
+        assertEquals(1, count("SELECT COUNT(*) FROM transactions WHERE id=?", ledger.transactionId));
+        assertEquals(1, count("SELECT COUNT(*) FROM transaction_attachments WHERE transaction_id=?",
+                ledger.transactionId));
+    }
+
+    @Test
+    void unwritableStagingAreaRejectsReplacementAndKeepsPreviousFile() throws Exception {
+        Client owner = client("storage-owner@example.com");
+        Ledger ledger = ledger(owner, "Storage Co");
+        upload(owner, ledger, file("original.pdf", "application/pdf", PDF));
+        String original = key(ledger.transactionId);
+        Path staging = DATA_PATH.resolve("attachments/.tmp");
+        Files.delete(staging);
+        Files.writeString(staging, "blocked");
+        try {
+            mvc.perform(withAuth(multipart(url(ledger)).file(file("replacement.png", "image/png", PNG)), owner))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(jsonPath("$.error.code", is("ATTACHMENT_STORAGE_FAILED")));
+            assertEquals(original, key(ledger.transactionId));
+            assertArrayEquals(PDF, Files.readAllBytes(filePath(original)));
+        } finally {
+            Files.deleteIfExists(staging);
+            Files.createDirectories(staging);
+        }
+    }
+
+    @Test
     void deletingTransactionOrPartyRemovesCommittedAttachmentFiles() throws Exception {
         Client owner = client("cascade-owner@example.com");
         Ledger first = ledger(owner, "Cascade Co");

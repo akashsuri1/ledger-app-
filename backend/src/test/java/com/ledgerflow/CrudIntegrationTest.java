@@ -18,6 +18,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterAll;
@@ -41,11 +44,14 @@ import tools.jackson.databind.ObjectMapper;
 class CrudIntegrationTest {
     private static final Path DATABASE_PATH = Path.of(System.getProperty("java.io.tmpdir"),
             "ledgerflow-crud-" + UUID.randomUUID() + ".db");
+    private static final Path DATA_PATH = Path.of(System.getProperty("java.io.tmpdir"),
+            "ledgerflow-crud-data-" + UUID.randomUUID());
     private static final String PASSWORD = "correct horse battery staple";
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         registry.add("ledgerflow.database.path", DATABASE_PATH::toString);
+        registry.add("ledgerflow.data-dir", DATA_PATH::toString);
         registry.add("ledgerflow.security.auth-rate-limit", () -> 1000);
     }
 
@@ -76,6 +82,9 @@ class CrudIntegrationTest {
         Files.deleteIfExists(DATABASE_PATH);
         Files.deleteIfExists(Path.of(DATABASE_PATH + "-wal"));
         Files.deleteIfExists(Path.of(DATABASE_PATH + "-shm"));
+        try (var paths = Files.walk(DATA_PATH)) {
+            for (Path path : paths.sorted(java.util.Comparator.reverseOrder()).toList()) Files.deleteIfExists(path);
+        }
     }
 
     @Test
@@ -318,6 +327,179 @@ class CrudIntegrationTest {
         mvc.perform(get("/api/companies/{company}/parties/{party}", companyA, partyA).cookie(owner.session))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.balance", is(30000)))
                 .andExpect(jsonPath("$.data.transactionCount", is(1)));
+    }
+
+    @Test
+    void transactionAmountLimitAndCalendarDatesAreStrict() throws Exception {
+        Client owner = client("owner@example.com");
+        long company = createCompany(owner, "Limit Company");
+        long region = createRegion(owner, company, "Main");
+        long party = createParty(owner, company, region, "Limit Party", "");
+        createTransaction(owner, company, party, "CREDIT", 1, "2024-02-29", "Leap day");
+        createTransaction(owner, company, party, "CREDIT", 1_000_000_000_000L,
+                "2026-09-30", "Maximum amount");
+        mvc.perform(get("/api/companies/{id}/dashboard", company).cookie(owner.session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.netBalance", is(1_000_000_000_001L)));
+
+        for (String amount : new String[] {
+                "0", "-1", "1.5", "25000.50", "1e3", "\"NaN\"", "\"Infinity\"",
+                "null", "1000000000001", "9223372036854775807" }) {
+            mvc.perform(request(post("/api/companies/{id}/transactions", company), owner)
+                    .content(transactionJson(party, "CREDIT", amount, "2026-09-30", "Invalid amount")))
+                    .andExpect(status().isUnprocessableEntity());
+        }
+        for (String date : new String[] { "2023-02-29", "2026-04-31", "2026-13-01",
+                "2026-09-15T00:00:00Z", "2026-9-15" }) {
+            mvc.perform(request(post("/api/companies/{id}/transactions", company), owner)
+                    .content(transactionJson(party, "CREDIT", "1", date, "Invalid date")))
+                    .andExpect(status().isUnprocessableEntity());
+        }
+        mvc.perform(get("/api/companies/{id}/transactions", company).cookie(owner.session)
+                .param("from", "2024-02-29").param("to", "2024-02-29"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.meta.total", is(1)));
+    }
+
+    @Test
+    void aggregateOverflowRejectsAndRollsBackCreatesAndUpdates() throws Exception {
+        Client owner = client("owner@example.com");
+        long company = createCompany(owner, "Overflow Company");
+        long region = createRegion(owner, company, "Main");
+        long party = createParty(owner, company, region, "Overflow Party", "");
+        String now = Instant.now().toString();
+        jdbc.update("""
+                INSERT INTO transactions(company_id,party_id,type,amount,transaction_date,description,notes,created_at,updated_at)
+                VALUES(?,?,'CREDIT',?,'2026-09-15','Existing amount','',?,?)
+                """, company, party, Long.MAX_VALUE - 7, now, now);
+        long small = createTransaction(owner, company, party, "CREDIT", 1, "2026-09-15", "Small amount");
+        int before = count("SELECT COUNT(*) FROM transactions WHERE company_id=?", company);
+        mvc.perform(request(post("/api/companies/{id}/transactions", company), owner)
+                        .content(transactionJson(party, "CREDIT", "10", "2026-09-15", "Would overflow")))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code", is("AMOUNT_LIMIT_EXCEEDED")));
+        mvc.perform(request(patch("/api/companies/{company}/transactions/{tx}", company, small), owner)
+                        .content("{\"amount\":10}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code", is("AMOUNT_LIMIT_EXCEEDED")));
+        assertEquals(before, count("SELECT COUNT(*) FROM transactions WHERE company_id=?", company));
+        assertEquals(1L, jdbc.queryForObject("SELECT amount FROM transactions WHERE id=?", Long.class, small));
+    }
+
+    @Test
+    void concurrentDuplicatesAndDeleteCreateRaceRemainConsistent() throws Exception {
+        Client owner = client("owner@example.com");
+        long company = createCompany(owner, "Race Company");
+        try (var workers = Executors.newFixedThreadPool(2)) {
+            var gate = new CountDownLatch(1);
+            var first = workers.submit(() -> {
+                gate.await();
+                return mvc.perform(request(post("/api/companies/{id}/regions", company), owner)
+                        .content("{\"name\":\"  Punjab  \"}")).andReturn().getResponse().getStatus();
+            });
+            var second = workers.submit(() -> {
+                gate.await();
+                return mvc.perform(request(post("/api/companies/{id}/regions", company), owner)
+                        .content("{\"name\":\"punjab\"}")).andReturn().getResponse().getStatus();
+            });
+            gate.countDown();
+            var statuses = java.util.Set.of(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS));
+            assertEquals(java.util.Set.of(201, 409), statuses);
+            assertEquals(1, count("SELECT COUNT(*) FROM regions WHERE company_id=?", company));
+        }
+        long region = jdbc.queryForObject("SELECT id FROM regions WHERE company_id=?", Long.class, company);
+        try (var workers = Executors.newFixedThreadPool(2)) {
+            var gate = new CountDownLatch(1);
+            var create = workers.submit(() -> {
+                gate.await();
+                return mvc.perform(request(post("/api/companies/{id}/parties", company), owner)
+                        .content(partyJson(region, "Party One", "03ABCDE1234F1Z5")))
+                        .andReturn().getResponse().getStatus();
+            });
+            var duplicate = workers.submit(() -> {
+                gate.await();
+                return mvc.perform(request(post("/api/companies/{id}/parties", company), owner)
+                        .content(partyJson(region, "Party Two", "03abcde1234f1z5")))
+                        .andReturn().getResponse().getStatus();
+            });
+            gate.countDown();
+            assertEquals(java.util.Set.of(201, 409), java.util.Set.of(
+                    create.get(10, TimeUnit.SECONDS), duplicate.get(10, TimeUnit.SECONDS)));
+            assertEquals(1, count("SELECT COUNT(*) FROM parties WHERE company_id=?", company));
+        }
+        long empty = createCompany(owner, "Deletion Race");
+        try (var workers = Executors.newFixedThreadPool(2)) {
+            var gate = new CountDownLatch(1);
+            var delete = workers.submit(() -> {
+                gate.await();
+                return mvc.perform(request(delete("/api/companies/{id}", empty), owner))
+                        .andReturn().getResponse().getStatus();
+            });
+            var create = workers.submit(() -> {
+                gate.await();
+                return mvc.perform(request(post("/api/companies/{id}/regions", empty), owner)
+                        .content("{\"name\":\"New Region\"}"))
+                        .andReturn().getResponse().getStatus();
+            });
+            gate.countDown();
+            int deleteStatus = delete.get(10, TimeUnit.SECONDS);
+            int createStatus = create.get(10, TimeUnit.SECONDS);
+            assertTrue(deleteStatus == 200 || deleteStatus == 409);
+            assertTrue(createStatus == 201 || createStatus == 404);
+            assertTrue(deleteStatus != 200 || createStatus != 201);
+            assertEquals(deleteStatus == 200 ? 0 : 1,
+                    count("SELECT COUNT(*) FROM companies WHERE id=?", empty));
+        }
+    }
+
+    @Test
+    void paginationAndLiteralSearchEdgesStayCompanyScoped() throws Exception {
+        Client owner = client("owner@example.com");
+        long company = createCompany(owner, "Paging Company");
+        long region = createRegion(owner, company, "Main");
+        mvc.perform(get("/api/companies/{id}/parties", company).cookie(owner.session)
+                        .param("pageSize", "2"))
+                .andExpect(jsonPath("$.data", hasSize(0)))
+                .andExpect(jsonPath("$.meta.total", is(0)))
+                .andExpect(jsonPath("$.meta.totalPages", is(0)));
+        long percent = createParty(owner, company, region, "Percent%Party", "");
+        long underscore = createParty(owner, company, region, "Under_Party", "");
+        long unicode = createParty(owner, company, region, "हिन्दी Party", "");
+        createTransaction(owner, company, percent, "CREDIT", 1, "2026-09-15", "Percent% invoice");
+        createTransaction(owner, company, underscore, "DEBIT", 1, "2026-09-15", "Under_score payment");
+        createTransaction(owner, company, unicode, "CREDIT", 1, "2026-09-15", "हिन्दी invoice");
+        for (String entity : java.util.List.of("parties", "transactions")) {
+            String url = "/api/companies/{id}/" + entity;
+            mvc.perform(get(url, company).cookie(owner.session).param("page", "1").param("pageSize", "2"))
+                    .andExpect(jsonPath("$.data", hasSize(2)))
+                    .andExpect(jsonPath("$.meta.total", is(3)))
+                    .andExpect(jsonPath("$.meta.totalPages", is(2)));
+            mvc.perform(get(url, company).cookie(owner.session).param("page", "2").param("pageSize", "2"))
+                    .andExpect(jsonPath("$.data", hasSize(1)));
+            mvc.perform(get(url, company).cookie(owner.session).param("page", "3").param("pageSize", "2"))
+                    .andExpect(jsonPath("$.data", hasSize(0)))
+                    .andExpect(jsonPath("$.meta.total", is(3)));
+            mvc.perform(get(url, company).cookie(owner.session).param("pageSize", "3"))
+                    .andExpect(jsonPath("$.data", hasSize(3)))
+                    .andExpect(jsonPath("$.meta.totalPages", is(1)));
+            mvc.perform(get(url, company).cookie(owner.session).param("pageSize", "100"))
+                    .andExpect(status().isOk());
+            for (String invalidPageSize : java.util.List.of("0", "101")) {
+                mvc.perform(get(url, company).cookie(owner.session).param("pageSize", invalidPageSize))
+                        .andExpect(status().isUnprocessableEntity());
+            }
+            mvc.perform(get(url, company).cookie(owner.session).param("page", "0"))
+                    .andExpect(status().isUnprocessableEntity());
+            mvc.perform(get(url, company).cookie(owner.session).param("search", "%"))
+                    .andExpect(jsonPath("$.meta.total", is(1)));
+            mvc.perform(get(url, company).cookie(owner.session).param("search", "_"))
+                    .andExpect(jsonPath("$.meta.total", is(1)));
+            mvc.perform(get(url, company).cookie(owner.session).param("search", "हिन्दी"))
+                    .andExpect(jsonPath("$.meta.total", is(1)));
+            mvc.perform(get(url, company).cookie(owner.session).param("search", "%'; DROP TABLE parties; --"))
+                    .andExpect(jsonPath("$.meta.total", is(0)));
+            mvc.perform(get(url, company).cookie(owner.session).param("search", "   "))
+                    .andExpect(jsonPath("$.meta.total", is(3)));
+        }
     }
 
     @Test

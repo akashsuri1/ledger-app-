@@ -39,11 +39,14 @@ import tools.jackson.databind.ObjectMapper;
 class Milestone4IntegrationTest {
     private static final Path DATABASE_PATH = Path.of(System.getProperty("java.io.tmpdir"),
             "ledgerflow-m4-" + UUID.randomUUID() + ".db");
+    private static final Path DATA_PATH = Path.of(System.getProperty("java.io.tmpdir"),
+            "ledgerflow-m4-data-" + UUID.randomUUID());
     private static final String PASSWORD = "correct horse battery staple";
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         registry.add("ledgerflow.database.path", DATABASE_PATH::toString);
+        registry.add("ledgerflow.data-dir", DATA_PATH::toString);
         registry.add("ledgerflow.security.auth-rate-limit", () -> 1000);
     }
 
@@ -74,6 +77,9 @@ class Milestone4IntegrationTest {
         Files.deleteIfExists(DATABASE_PATH);
         Files.deleteIfExists(Path.of(DATABASE_PATH + "-wal"));
         Files.deleteIfExists(Path.of(DATABASE_PATH + "-shm"));
+        try (var paths = Files.walk(DATA_PATH)) {
+            for (Path path : paths.sorted(java.util.Comparator.reverseOrder()).toList()) Files.deleteIfExists(path);
+        }
     }
 
     @Test

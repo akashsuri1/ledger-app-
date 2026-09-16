@@ -14,7 +14,7 @@ public class AttachmentRepository {
     public AttachmentRepository(JdbcTemplate jdbc) { this.jdbc = jdbc; }
 
     public record Attachment(long id, long companyId, long transactionId, String storageKey,
-                             String originalName, String mimeType, long byteSize, Instant createdAt) {
+                             String originalName, String mimeType, long byteSize, String sha256, Instant createdAt) {
         public AttachmentView view() { return new AttachmentView(id, originalName, mimeType, byteSize); }
     }
 
@@ -33,18 +33,19 @@ public class AttachmentRepository {
     }
 
     public void upsert(long companyId, long transactionId, String storageKey,
-                       String originalName, String mimeType, long byteSize) {
+                       String originalName, String mimeType, long byteSize, String sha256) {
         jdbc.update("""
                 INSERT INTO transaction_attachments(
-                    company_id,transaction_id,storage_key,original_name,mime_type,byte_size,created_at
-                ) VALUES(?,?,?,?,?,?,?)
+                    company_id,transaction_id,storage_key,original_name,mime_type,byte_size,sha256,created_at
+                ) VALUES(?,?,?,?,?,?,?,?)
                 ON CONFLICT(company_id,transaction_id) DO UPDATE SET
                     storage_key=excluded.storage_key,
                     original_name=excluded.original_name,
                     mime_type=excluded.mime_type,
                     byte_size=excluded.byte_size,
+                    sha256=excluded.sha256,
                     created_at=excluded.created_at
-                """, companyId, transactionId, storageKey, originalName, mimeType, byteSize,
+                """, companyId, transactionId, storageKey, originalName, mimeType, byteSize, sha256,
                 Instant.now().toString());
     }
 
@@ -56,6 +57,6 @@ public class AttachmentRepository {
     private Attachment map(java.sql.ResultSet rs, int row) throws java.sql.SQLException {
         return new Attachment(rs.getLong("id"), rs.getLong("company_id"), rs.getLong("transaction_id"),
                 rs.getString("storage_key"), rs.getString("original_name"), rs.getString("mime_type"),
-                rs.getLong("byte_size"), Instant.parse(rs.getString("created_at")));
+                rs.getLong("byte_size"), rs.getString("sha256"), Instant.parse(rs.getString("created_at")));
     }
 }
