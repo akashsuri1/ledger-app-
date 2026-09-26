@@ -9,7 +9,7 @@ if (-not $run.StartsWith($target + [IO.Path]::DirectorySeparatorChar, [StringCom
 }
 [IO.Directory]::CreateDirectory($run) | Out-Null
 $data = Join-Path $run "data"
-$jar = Join-Path $target "ledgerflow-backend-0.0.1-SNAPSHOT.jar"
+$jar = Join-Path $target "ledgerflow-backend-0.1.0.jar"
 $java = Join-Path $env:JAVA_HOME "bin\java.exe"
 $base = "http://127.0.0.1:$Port"
 $cookies = Join-Path $run "cookies.txt"

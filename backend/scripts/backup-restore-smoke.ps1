@@ -12,7 +12,7 @@ if (-not $runRoot.StartsWith($targetRoot + [IO.Path]::DirectorySeparatorChar,
 }
 [IO.Directory]::CreateDirectory($runRoot) | Out-Null
 
-$jar = Join-Path $targetRoot "ledgerflow-backend-0.0.1-SNAPSHOT.jar"
+$jar = Join-Path $targetRoot "ledgerflow-backend-0.1.0.jar"
 $java = Join-Path $env:JAVA_HOME "bin\java.exe"
 $database = Join-Path $runRoot "ledgerflow.db"
 $data = Join-Path $runRoot "data"

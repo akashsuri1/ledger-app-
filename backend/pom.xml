@@ -13,7 +13,7 @@
 
     <groupId>com.ledgerflow</groupId>
     <artifactId>ledgerflow-backend</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.1.0</version>
     <name>LedgerFlow Backend</name>
     <description>LedgerFlow API and persistence service</description>
 
@@ -69,6 +69,16 @@
     </dependencies>
 
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <resource>
+                <directory>../frontend/dist</directory>
+                <targetPath>static</targetPath>
+                <filtering>false</filtering>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

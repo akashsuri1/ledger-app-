@@ -49,7 +49,7 @@ public class BackupArchive {
             attachmentEntries.forEach((name, bytes) -> checksums.put(name, sha256(bytes)));
             int attachmentCount = company.transactions().stream()
                     .mapToInt(transaction -> transaction.attachment() == null ? 0 : 1).sum();
-            var manifest = new Manifest(FORMAT, FORMAT_VERSION, Instant.now().toString(), "0.0.1",
+            var manifest = new Manifest(FORMAT, FORMAT_VERSION, Instant.now().toString(), "0.1.0",
                     "COMPANY", 1, attachmentCount, checksums);
             var entries = new LinkedHashMap<String, byte[]>();
             entries.put(MANIFEST, mapper.writeValueAsBytes(manifest));

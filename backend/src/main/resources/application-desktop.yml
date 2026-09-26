@@ -1,0 +1,14 @@
+server:
+  address: 127.0.0.1
+
+ledgerflow:
+  security:
+    # Desktop traffic is same-origin loopback HTTP. HttpOnly and SameSite remain enabled.
+    secure-cookies: false
+
+logging:
+  logback:
+    rollingpolicy:
+      max-file-size: 5MB
+      max-history: 5
+      total-size-cap: 25MB

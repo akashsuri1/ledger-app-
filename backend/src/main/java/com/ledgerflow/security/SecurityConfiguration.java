@@ -58,6 +58,7 @@ public class SecurityConfiguration {
         http
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .csrf(csrf -> csrf.csrfTokenRepository(csrfRepository)
+                        .ignoringRequestMatchers("/api/desktop/shutdown")
                         .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler()))
                 .cors(cors -> {})
                 .httpBasic(basic -> basic.disable())
@@ -71,6 +72,9 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.GET, "/api/auth/csrf").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login",
                                 "/api/auth/forgot-password", "/api/auth/reset-password").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/desktop/shutdown").permitAll()
+                        .requestMatchers(request -> HttpMethod.GET.matches(request.getMethod())
+                                && !request.getRequestURI().startsWith("/api/")).permitAll()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(rateLimitFilter, LogoutFilter.class)

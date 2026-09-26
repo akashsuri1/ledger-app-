@@ -24,7 +24,7 @@ export default defineConfig({
   use: { baseURL: frontendUrl, browserName: "chromium", channel: "msedge", actionTimeout: 15_000, trace: "retain-on-failure" },
   webServer: [
     {
-      command: `${java} -Dlogging.level.root=WARN -jar "${path.join(backendDir, "target", "ledgerflow-backend-0.0.1-SNAPSHOT.jar")}" --server.port=${backendPort}`,
+      command: `${java} -Dlogging.level.root=WARN -jar "${path.join(backendDir, "target", "ledgerflow-backend-0.1.0.jar")}" --server.port=${backendPort}`,
       cwd: backendDir,
       url: `${backendUrl}/api/health`,
       timeout: 90_000,

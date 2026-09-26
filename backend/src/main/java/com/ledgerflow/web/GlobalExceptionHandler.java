@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -66,6 +67,12 @@ public class GlobalExceptionHandler {
                 .body(ApiErrorEnvelope.of(backup ? "BACKUP_TOO_LARGE" : "ATTACHMENT_TOO_LARGE",
                         backup ? "The backup exceeds the configured size limit."
                                 : "The attachment exceeds the configured size limit."));
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    ResponseEntity<ApiErrorEnvelope> resourceMissing() {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiErrorEnvelope.of("NOT_FOUND", "The requested resource was not found."));
     }
 
     @ExceptionHandler(Exception.class)

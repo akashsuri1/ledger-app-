@@ -43,9 +43,44 @@ $env:JAVA_HOME = "C:\Users\HP\.jdks\openjdk-23"
 See [backend/README.md](backend/README.md) for the database location and backend
 commands. The full contract is in [docs/BACKEND_HANDOFF.md](docs/BACKEND_HANDOFF.md).
 
-## Desktop application
+## Windows desktop application
 
-Add the desktop project under `desktop/` after the HTTP API and frontend API
-integration are stable. The package can then build `frontend/dist`, bundle the
-backend runtime and database migrations, and store the live database in the
-operating system's application-data directory.
+LedgerFlow has a Tauri 2 Windows x64 desktop package. It bundles Java, the Spring
+Boot backend, the React production build, and the SQLite migrations. No separate
+Java installation or backend command is needed to run the installed app.
+
+Build the installer from the repository root:
+
+```powershell
+$env:JAVA_HOME = "C:\Users\HP\.jdks\openjdk-23"
+.\scripts\build-desktop.ps1 -JdkHome $env:JAVA_HOME
+```
+
+The installer is written to:
+
+```text
+desktop\src-tauri\target\release\bundle\nsis\LedgerFlow_0.1.0_x64-setup.exe
+```
+
+The installed application starts its own backend on a randomly selected
+`127.0.0.1` port and serves the UI from that same origin. Its live desktop data is
+kept under `%LOCALAPPDATA%\com.ledgerflow.desktop\data`; logs are in the sibling
+`logs` directory.
+
+### Inspecting the desktop database
+
+LedgerFlow uses SQLite. Close LedgerFlow first, then open
+`%LOCALAPPDATA%\com.ledgerflow.desktop\data\ledgerflow.db` with DB Browser for
+SQLite or SQLiteStudio. Use the Browse Data and Execute SQL views to inspect it;
+do not edit the live database directly. For a command-line check, run:
+
+```powershell
+sqlite3 "$env:LOCALAPPDATA\com.ledgerflow.desktop\data\ledgerflow.db" ".tables"
+sqlite3 "$env:LOCALAPPDATA\com.ledgerflow.desktop\data\ledgerflow.db" "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;"
+```
+
+While the app is open, use its encrypted backup feature for a consistent copy, or
+stop the app before copying the database. The logs at
+`%LOCALAPPDATA%\com.ledgerflow.desktop\logs\backend.log` and
+`desktop-supervisor.log` show startup and backend activity without exposing
+passwords or backup passphrases.
