@@ -236,23 +236,12 @@ function TransactionsWorkspace() {
                 10,
               );
 
-            const matchesSearch =
-              !query ||
-              party?.name
-                .toLowerCase()
-                .includes(query) ||
-              transaction.description
-                .toLowerCase()
-                .includes(query) ||
-              transaction.notes
-                .toLowerCase()
-                .includes(query) ||
-              transaction.attachmentName
-                ?.toLowerCase()
-                .includes(query) ||
-              region?.name
-                .toLowerCase()
-                .includes(query);
+            const matchesSearch = !query ||
+      (party?.name || '').toLowerCase().includes(query) ||
+      (transaction.description || '').toLowerCase().includes(query) ||
+      (transaction.notes || '').toLowerCase().includes(query) ||
+      (transaction.attachmentName || '').toLowerCase().includes(query) ||
+      (region?.name || '').toLowerCase().includes(query);
 
             const matchesParty =
               partyFilter ===

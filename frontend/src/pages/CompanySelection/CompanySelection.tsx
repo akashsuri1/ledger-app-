@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   ArrowRight,
   Building2,
   CheckCircle2,
   Plus,
 } from "lucide-react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 import CompanyFormModal from "../../components/companies/CompanyFormModal";
 import { useLedger } from "../../hooks/useLedger";
@@ -42,12 +42,23 @@ export default function CompanySelection() {
   const auth = useAuth();
   const [createOpen, setCreateOpen] = useState(false);
 
+  useEffect(() => {
+    if (companies.length === 1) {
+      void switchCompany(companies[0].id);
+      navigate("/dashboard", { replace: true });
+    }
+  }, [companies, switchCompany, navigate]);
+
   if (companies.length === 1) {
-    return <Navigate to="/dashboard" replace />;
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50 text-sm font-medium text-slate-500">
+        Opening company...
+      </div>
+    );
   }
 
-  async function openCompany(companyId: number) {
-    await switchCompany(companyId);
+  function openCompany(companyId: number) {
+    void switchCompany(companyId);
     navigate("/dashboard", { replace: true });
   }
 

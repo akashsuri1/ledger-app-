@@ -60,8 +60,8 @@ function failed(cause: unknown): SettingsSaveResult {
 
 export function LedgerProvider({ children }: { children: ReactNode }) {
   const auth = useAuth();
-  const [activeCompanyId, setActiveCompanyId] = useState(() =>
-    activeTabCompanyId(auth.user?.id ?? 0, auth.companies) ?? initialCompanyId(auth.companies, auth.preferences));
+  const [activeCompanyId, setActiveCompanyId] = useState<number>(() =>
+    activeTabCompanyId(auth.user?.id ?? 0, auth.companies) ?? (companyDestination(auth.companies, auth.preferences) === 'select' ? 0 : initialCompanyId(auth.companies, auth.preferences)));
   const [selectionRequired, setSelectionRequired] = useState(() =>
     activeTabCompanyId(auth.user?.id ?? 0, auth.companies) === null
       && companyDestination(auth.companies, auth.preferences) === "select");
@@ -89,11 +89,15 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
         allParties(activeCompanyId, currentController.signal), allTransactions(activeCompanyId, currentController.signal),
         dashboardApi.get(activeCompanyId, currentController.signal),
       ]);
-      if (request !== requestNumber.current || activeCompanyId !== companyIdRef.current) return;
-      setCompanySettings(settings); setRegions(regionValues.map(mapRegion)); setParties(partyValues);
+    if (request !== requestNumber.current || activeCompanyId !== companyIdRef.current) {
+        return;
+    }
+    setCompanySettings(settings); setRegions(regionValues.map(mapRegion)); setParties(partyValues);
       setTransactions(transactionValues); setDashboard(dashboardValue);
     } catch (cause) {
-      if (cause instanceof DOMException && cause.name === "AbortError") return;
+    if (cause instanceof DOMException && cause.name === "AbortError") {
+        return;
+    }
       if (request === requestNumber.current && activeCompanyId === companyIdRef.current) setError(cause instanceof Error ? cause.message : "Unable to load this company.");
     } finally { if (request === requestNumber.current && activeCompanyId === companyIdRef.current) setIsLoading(false); }
   }, [activeCompanyId]);
@@ -183,6 +187,32 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
     const anchor = document.createElement("a"); anchor.href = url; anchor.download = file.fileName; anchor.click(); URL.revokeObjectURL(url);
   }, [activeCompanyId]);
 
+  const viewAttachment = useCallback(async (id: number) => {
+    // Open immediately to bypass popup blockers for async actions
+    const newWindow = window.open("", "_blank");
+    if (newWindow) {
+      newWindow.document.write("<title>Loading Document</title><div style='font-family: sans-serif; padding: 20px; text-align: center; color: #666;'>Loading securely...</div>");
+    }
+
+    try {
+      const file = await attachmentApi.download(activeCompanyId, id);
+      const url = URL.createObjectURL(file.blob);
+      if (newWindow) {
+        newWindow.location.href = url;
+      } else {
+        // Fallback if the popup was completely blocked
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.target = "_blank";
+        anchor.click();
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60000); // 1 minute
+    } catch (e) {
+      if (newWindow) newWindow.close();
+      throw e;
+    }
+  }, [activeCompanyId]);
+
   const applySettingsPatch = useCallback(async (patch: AppSettingsPatch): Promise<SettingsSaveResult> => {
     try {
       if (patch.business) {
@@ -209,7 +239,7 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
     activeRole, canWrite, isOwner: activeRole === "OWNER", dashboard, refreshCompanyData,
     createCompany, updateCompany, canDeleteCompany: (id) => id === activeCompanyId && activeRole === "OWNER" && regions.length === 0 && parties.length === 0 && transactions.length === 0,
     deleteCompany, switchCompany, addParty, updateParty, deleteParty, addRegion, updateRegion, deleteRegion,
-    addTransaction, updateTransaction, deleteTransaction, downloadAttachment, deleteAttachment,
+    addTransaction, updateTransaction, deleteTransaction, downloadAttachment, viewAttachment, deleteAttachment,
     getPartyBalance: (id) => parties.find((item) => item.id === id)?.balance ?? 0,
     getRegionById: (id) => regions.find((item) => item.id === id), resetDemoData: () => undefined,
     applySettingsPatch, clearStorageError: () => undefined, getWorkspaceSnapshot, replaceWorkspace,

@@ -38,6 +38,7 @@ export interface LedgerContextValue {
   updateTransaction: (transactionId: number, data: UpdateTransaction) => Promise<void>;
   deleteTransaction: (transactionId: number) => Promise<void>;
   downloadAttachment: (transactionId: number) => Promise<void>;
+  viewAttachment: (transactionId: number) => Promise<void>;
   deleteAttachment: (transactionId: number) => Promise<void>;
   getPartyBalance: (partyId: number) => number;
   getRegionById: (regionId: number) => Region | undefined;

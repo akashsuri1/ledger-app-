@@ -149,26 +149,13 @@ export default function Parties() {
               party.regionId,
             );
 
-          const matchesSearch =
-            !query ||
-            party.name
-              .toLowerCase()
-              .includes(query) ||
-            party.phone
-              .toLowerCase()
-              .includes(query) ||
-            party.gstin
-              .toLowerCase()
-              .includes(query) ||
-            party.address
-              .toLowerCase()
-              .includes(query) ||
-            party.notes
-              .toLowerCase()
-              .includes(query) ||
-            region?.name
-              .toLowerCase()
-              .includes(query);
+          const matchesSearch = !query ||
+      (party.name || '').toLowerCase().includes(query) ||
+      (party.phone || '').toLowerCase().includes(query) ||
+      (party.gstin || '').toLowerCase().includes(query) ||
+      (party.address || '').toLowerCase().includes(query) ||
+      (party.notes || '').toLowerCase().includes(query) ||
+      (region?.name || '').toLowerCase().includes(query);
 
           const matchesRegion =
             selectedRegion ===
