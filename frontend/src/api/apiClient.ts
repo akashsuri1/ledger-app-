@@ -1,7 +1,7 @@
 import type { ApiEnvelope, ApiErrorEnvelope, ApiErrorShape, PagedEnvelope } from "./types";
 
 const configuredBase = import.meta.env?.VITE_API_BASE_URL?.trim();
-export const API_BASE_URL = (configuredBase || (import.meta.env.PROD ? "" : "http://localhost:8080")).replace(/\/$/, "");
+export const API_BASE_URL = (configuredBase || (import.meta.env?.PROD ? "" : "http://localhost:8080")).replace(/\/$/, "");
 const mutating = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 export class ApiClientError extends Error implements ApiErrorShape {
